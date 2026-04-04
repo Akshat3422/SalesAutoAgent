@@ -1,0 +1,13 @@
+django
+djangorestframework
+psycopg2-binary
+uvicorn
+fastapi[all]
+langchain
+langchain_groq
+langchain_community
+langgraph
+ipykernel
+python-dotenv
+celery
+redis
