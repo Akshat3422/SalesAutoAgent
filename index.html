@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Lead Gen System — Prototype Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0b0d;
+  --bg2:#0f1115;
+  --bg3:#141720;
+  --bg4:#1a1e2a;
+  --border:#ffffff0f;
+  --border2:#ffffff1a;
+  --border3:#ffffff2a;
+  --text:#e8eaf0;
+  --muted:#6b7280;
+  --muted2:#9ca3af;
+  --accent:#4ade80;
+  --accent2:#22d3ee;
+  --accent3:#f59e0b;
+  --accent4:#f87171;
+  --accent5:#a78bfa;
+  --mono:'DM Mono',monospace;
+  --sans:'Syne',sans-serif;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;overflow-x:hidden}
+
+/* ─── GRAIN OVERLAY ─── */
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:9999;opacity:.5;
+}
+
+/* ─── SCROLLBAR ─── */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border3);border-radius:4px}
+
+/* ─── LAYOUT ─── */
+.shell{max-width:1200px;margin:0 auto;padding:0 24px}
+
+/* ─── HEADER ─── */
+header{
+  padding:20px 0 0;
+  position:sticky;top:0;z-index:100;
+  background:linear-gradient(to bottom,var(--bg) 80%,transparent);
+}
+.header-inner{
+  display:flex;align-items:center;justify-content:space-between;
+  padding-bottom:16px;
+  border-bottom:1px solid var(--border);
+}
+.logo{
+  display:flex;align-items:center;gap:12px;
+}
+.logo-mark{
+  width:36px;height:36px;border-radius:8px;
+  background:linear-gradient(135deg,#4ade8022,#22d3ee22);
+  border:1px solid #4ade8044;
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;
+}
+.logo-text{font-family:var(--sans);font-size:16px;font-weight:700;letter-spacing:-0.02em}
+.logo-sub{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:0.05em;margin-top:1px}
+.header-right{display:flex;align-items:center;gap:10px}
+.live-badge{
+  display:flex;align-items:center;gap:6px;
+  font-family:var(--mono);font-size:11px;color:var(--accent);
+  padding:5px 10px;border-radius:99px;
+  background:#4ade8012;border:1px solid #4ade8030;
+}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(0.8)}}
+.version{font-family:var(--mono);font-size:11px;color:var(--muted);padding:5px 10px;border-radius:6px;border:1px solid var(--border)}
+
+/* ─── PIPELINE HEADER ─── */
+.pipeline-bar{
+  padding:20px 0;
+  display:flex;align-items:center;gap:0;
+  overflow-x:auto;
+}
+.p-step{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 16px;
+  border:1px solid var(--border);
+  background:var(--bg2);
+  border-radius:8px;
+  font-size:12px;font-family:var(--mono);
+  color:var(--muted2);
+  cursor:pointer;
+  transition:all 0.25s;
+  flex-shrink:0;
+  position:relative;
+}
+.p-step:hover{border-color:var(--border3);color:var(--text)}
+.p-step.active{background:var(--bg4);border-color:var(--accent2);color:var(--accent2);box-shadow:0 0 20px #22d3ee10}
+.p-step.done{border-color:var(--accent);color:var(--accent);background:#4ade8008}
+.p-step.running{border-color:var(--accent3);color:var(--accent3);background:#f59e0b08}
+.p-dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
+.p-dot.spin{animation:spin 1s linear infinite;border-radius:0;background:none;border:2px solid currentColor;border-top-color:transparent;width:8px;height:8px}
+.p-arrow{
+  width:40px;height:1px;background:var(--border2);
+  flex-shrink:0;position:relative;
+}
+.p-arrow::after{
+  content:'';position:absolute;right:-4px;top:-3px;
+  border:4px solid transparent;border-left-color:var(--border2);
+}
+.p-arrow.active::after{border-left-color:var(--accent2)}
+.p-arrow.done::after{border-left-color:var(--accent)}
+
+/* ─── METRICS ROW ─── */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.metric{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:10px;padding:16px;
+  transition:border-color 0.3s;
+}
+.metric:hover{border-color:var(--border2)}
+.metric-label{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px}
+.metric-val{font-family:var(--sans);font-size:28px;font-weight:700;letter-spacing:-0.03em;line-height:1}
+.metric-sub{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:5px}
+.metric-accent{color:var(--accent)}
+.metric-accent2{color:var(--accent2)}
+.metric-accent3{color:var(--accent3)}
+.metric-accent5{color:var(--accent5)}
+
+/* ─── MAIN GRID ─── */
+.main-grid{display:grid;grid-template-columns:1fr 380px;gap:16px;margin-bottom:20px}
+.panel{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:12px;overflow:hidden;
+}
+.panel-header{
+  padding:14px 18px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.panel-title{font-size:13px;font-weight:600;letter-spacing:-0.01em}
+.panel-tag{
+  font-family:var(--mono);font-size:10px;padding:3px 8px;
+  border-radius:4px;
+}
+.tag-green{background:#4ade8015;color:var(--accent);border:1px solid #4ade8025}
+.tag-blue{background:#22d3ee15;color:var(--accent2);border:1px solid #22d3ee25}
+.tag-amber{background:#f59e0b15;color:var(--accent3);border:1px solid #f59e0b25}
+.tag-red{background:#f8717115;color:var(--accent4);border:1px solid #f8717125}
+.tag-purple{background:#a78bfa15;color:var(--accent5);border:1px solid #a78bfa25}
+.tag-gray{background:#ffffff08;color:var(--muted2);border:1px solid var(--border2)}
+.panel-body{padding:18px}
+
+/* ─── AGENT LOG ─── */
+.log{
+  font-family:var(--mono);font-size:11.5px;
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;padding:12px 14px;
+  height:180px;overflow-y:auto;line-height:1.8;
+}
+.log::-webkit-scrollbar-thumb{background:#ffffff15}
+.log-line{display:flex;gap:8px;align-items:baseline}
+.log-ts{color:var(--muted);flex-shrink:0;font-size:10px}
+.log-ok{color:var(--accent)}
+.log-info{color:var(--accent2)}
+.log-warn{color:var(--accent3)}
+.log-err{color:var(--accent4)}
+.log-dim{color:var(--muted2)}
+
+/* ─── LEADS TABLE ─── */
+.leads-wrap{overflow-x:auto;margin-top:14px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{
+  font-family:var(--mono);font-size:10px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:0.06em;
+  padding:8px 10px;text-align:left;
+  border-bottom:1px solid var(--border);
+  white-space:nowrap;
+}
+tbody td{
+  padding:10px 10px;border-bottom:1px solid var(--border);
+  vertical-align:middle;
+}
+tbody tr:last-child td{border-bottom:none}
+tbody tr{transition:background 0.15s}
+tbody tr:hover td{background:#ffffff04}
+.co-name{font-weight:600;font-size:13px}
+.domain{font-family:var(--mono);font-size:11px;color:var(--accent2)}
+.industry{font-family:var(--mono);font-size:10px;color:var(--muted2);background:#ffffff08;padding:2px 7px;border-radius:4px}
+
+/* ─── SCORE BAR ─── */
+.score-wrap{display:flex;align-items:center;gap:8px}
+.score-track{
+  width:64px;height:4px;border-radius:99px;
+  background:#ffffff0a;overflow:hidden;
+}
+.score-fill{height:100%;border-radius:99px;transition:width 0.8s ease}
+.score-num{font-family:var(--mono);font-size:12px;font-weight:500}
+
+/* ─── STATUS PILLS ─── */
+.pill{
+  display:inline-block;padding:2px 9px;border-radius:99px;
+  font-family:var(--mono);font-size:10px;font-weight:500;
+}
+.pill-pending{background:#f59e0b12;color:var(--accent3);border:1px solid #f59e0b25}
+.pill-crawling{background:#22d3ee12;color:var(--accent2);border:1px solid #22d3ee25}
+.pill-done{background:#4ade8012;color:var(--accent);border:1px solid #4ade8025}
+.pill-failed{background:#f8717112;color:var(--accent4);border:1px solid #f8717125}
+.pill-drafted{background:#ffffff08;color:var(--muted2);border:1px solid var(--border2)}
+.pill-approved{background:#4ade8012;color:var(--accent);border:1px solid #4ade8025}
+.pill-sent{background:#22d3ee12;color:var(--accent2);border:1px solid #22d3ee25}
+.pill-skipped{background:#f8717112;color:var(--accent4);border:1px solid #f8717125}
+.pill-replied{background:#a78bfa12;color:var(--accent5);border:1px solid #a78bfa25}
+
+/* ─── BUTTONS ─── */
+.btn{
+  font-family:var(--mono);font-size:12px;
+  padding:8px 16px;border-radius:7px;cursor:pointer;
+  border:1px solid var(--border2);background:transparent;
+  color:var(--muted2);transition:all 0.2s;
+}
+.btn:hover{border-color:var(--border3);color:var(--text);background:#ffffff06}
+.btn:active{transform:scale(0.97)}
+.btn-primary{
+  background:linear-gradient(135deg,#4ade8020,#22d3ee15);
+  border-color:var(--accent);color:var(--accent);
+}
+.btn-primary:hover{background:linear-gradient(135deg,#4ade8030,#22d3ee25);box-shadow:0 0 20px #4ade8020}
+.btn-send{
+  background:linear-gradient(135deg,#4ade8020,#4ade8010);
+  border-color:var(--accent);color:var(--accent);
+}
+.btn-send:hover{background:#4ade8030}
+.btn-skip{
+  background:linear-gradient(135deg,#f8717112,#f8717108);
+  border-color:var(--accent4);color:var(--accent4);
+}
+.btn-skip:hover{background:#f8717120}
+.btn-sm{padding:5px 12px;font-size:11px}
+.btn-xs{padding:3px 9px;font-size:10px;border-radius:5px}
+
+/* ─── INPUT ─── */
+.input-row{display:flex;gap:8px;margin-bottom:12px}
+input,select{
+  font-family:var(--mono);font-size:12px;
+  background:var(--bg);border:1px solid var(--border2);
+  color:var(--text);border-radius:7px;padding:8px 12px;
+  outline:none;transition:border-color 0.2s;
+}
+input{flex:1}
+input:focus,select:focus{border-color:var(--border3)}
+select option{background:var(--bg)}
+
+/* ─── PROGRESS ─── */
+.progress-bar{height:2px;background:var(--border);border-radius:99px;overflow:hidden;margin-bottom:10px}
+.progress-fill{height:100%;border-radius:99px;width:0%;transition:width 0.3s ease;
+  background:linear-gradient(90deg,var(--accent),var(--accent2))}
+
+/* ─── RIGHT PANEL ─── */
+.right-col{display:flex;flex-direction:column;gap:14px}
+
+/* ─── EMAIL CARD ─── */
+.email-card{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:10px;overflow:hidden;
+  transition:border-color 0.3s;
+}
+.email-card:hover{border-color:var(--border2)}
+.email-card + .email-card{margin-top:10px}
+.email-card-header{
+  padding:12px 14px;border-bottom:1px solid var(--border);
+  display:flex;align-items:flex-start;justify-content:space-between;gap:8px;
+}
+.email-co{font-size:12px;font-weight:600}
+.email-to{font-family:var(--mono);font-size:10px;color:var(--accent2);margin-top:2px}
+.email-subject{
+  font-family:var(--mono);font-size:10px;color:var(--accent3);
+  padding:8px 14px;border-bottom:1px solid var(--border);
+  background:#f59e0b06;
+}
+.email-body-preview{
+  font-family:var(--mono);font-size:10.5px;color:var(--muted2);
+  padding:10px 14px;line-height:1.7;max-height:130px;overflow-y:auto;
+  white-space:pre-wrap;
+}
+.email-actions{
+  padding:10px 14px;display:flex;gap:7px;align-items:center;
+  border-top:1px solid var(--border);
+}
+
+/* ─── ENRICHED PROFILE ─── */
+.profile-card{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:10px;padding:14px;margin-top:12px;
+}
+.profile-section{margin-bottom:10px}
+.profile-label{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:5px}
+.profile-value{font-size:12px;color:var(--muted2);line-height:1.6}
+.tag-list{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.service-tag{
+  font-family:var(--mono);font-size:10px;padding:2px 8px;
+  border-radius:4px;background:#ffffff08;color:var(--muted2);
+  border:1px solid var(--border);
+}
+.pain-box{
+  background:#f59e0b08;border:1px solid #f59e0b20;
+  border-radius:7px;padding:8px 12px;
+  font-size:11.5px;color:#fbbf24;line-height:1.6;
+}
+.oppo-box{
+  background:#4ade8008;border:1px solid #4ade8020;
+  border-radius:7px;padding:8px 12px;
+  font-size:11.5px;color:var(--accent);line-height:1.6;
+}
+.contact-row{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 0;border-top:1px solid var(--border);margin-top:8px;
+}
+.avatar{
+  width:30px;height:30px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;flex-shrink:0;
+  background:linear-gradient(135deg,#22d3ee20,#4ade8020);
+  border:1px solid #22d3ee30;color:var(--accent2);
+}
+.contact-info .name{font-size:12px;font-weight:600}
+.contact-info .role{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.contact-info .email{font-family:var(--mono);font-size:10px;color:var(--accent2)}
+
+/* ─── DASHBOARD TABLE ─── */
+.dash-section{margin-bottom:20px}
+.dash-section-title{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:0.08em;
+  margin-bottom:10px;display:flex;align-items:center;gap:8px;
+}
+.dash-section-title::after{content:'';flex:1;height:1px;background:var(--border)}
+.reply-badge{display:flex;align-items:center;gap:4px}
+.reply-dot{width:5px;height:5px;border-radius:50%;background:var(--accent5);animation:pulse 2s infinite}
+
+/* ─── ARCH SECTION ─── */
+.arch-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.arch-agent{
+  border:1px solid var(--border);border-radius:10px;
+  padding:14px;background:var(--bg);
+  transition:border-color 0.25s,box-shadow 0.25s;
+}
+.arch-agent:hover{border-color:var(--border2);box-shadow:0 4px 20px #00000040}
+.arch-agent-num{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:5px}
+.arch-agent-name{font-size:13px;font-weight:600;margin-bottom:6px}
+.arch-agent-desc{font-family:var(--mono);font-size:10.5px;color:var(--muted2);line-height:1.7}
+.arch-stack{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.stack-chip{
+  font-family:var(--mono);font-size:9px;padding:2px 7px;
+  border-radius:3px;background:#ffffff08;color:var(--muted);
+  border:1px solid var(--border);
+}
+.db-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.db-table{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;font-family:var(--mono);font-size:10.5px}
+.db-title{font-size:12px;font-weight:600;margin-bottom:8px;color:var(--accent2)}
+.db-field{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);color:var(--muted2)}
+.db-field:last-child{border:none}
+.db-type{color:var(--muted);font-size:9px}
+.db-pk{color:var(--accent3)}
+.db-fk{color:var(--accent5)}
+.db-unique{color:var(--accent)}
+
+/* ─── TABS ─── */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:18px;overflow-x:auto}
+.tab{
+  font-family:var(--mono);font-size:11.5px;padding:10px 16px;
+  border-bottom:2px solid transparent;color:var(--muted);
+  cursor:pointer;transition:all 0.2s;white-space:nowrap;
+  background:none;border-top:none;border-left:none;border-right:none;
+}
+.tab:hover{color:var(--muted2)}
+.tab.active{color:var(--text);border-bottom-color:var(--accent2)}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+/* ─── SECTION LABEL ─── */
+.section-label{
+  font-family:var(--mono);font-size:10px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:0.08em;
+  margin-bottom:10px;
+}
+
+/* ─── REPLY CARD ─── */
+.reply-card{
+  background:#a78bfa08;border:1px solid #a78bfa20;
+  border-radius:8px;padding:10px 12px;margin-top:6px;
+  font-family:var(--mono);font-size:11px;color:var(--accent5);
+  line-height:1.6;
+}
+
+/* ─── ANIMATIONS ─── */
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+.fade-in{animation:fadeIn 0.4s ease forwards}
+.slide-in{animation:slideIn 0.3s ease forwards}
+
+/* ─── PAGE SECTIONS ─── */
+.page{display:none}
+.page.active{display:block;animation:fadeIn 0.3s ease}
+
+/* ─── FOOTER ─── */
+footer{
+  border-top:1px solid var(--border);padding:16px 0;
+  display:flex;align-items:center;justify-content:space-between;
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+}
+
+/* ─── RESPONSIVE ─── */
+@media(max-width:900px){
+  .main-grid{grid-template-columns:1fr}
+  .metrics{grid-template-columns:repeat(2,1fr)}
+  .arch-grid{grid-template-columns:1fr}
+  .db-grid{grid-template-columns:1fr}
+}
+@media(max-width:500px){
+  .metrics{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ─── FLOW ARROWS ─── */
+.flow-section{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:12px;padding:20px;margin-bottom:16px;
+  overflow-x:auto;
+}
+.flow-row{display:flex;align-items:center;gap:0;min-width:600px}
+.flow-node{
+  flex:1;background:var(--bg);border:1px solid var(--border2);
+  border-radius:10px;padding:12px 14px;text-align:center;
+  min-width:110px;
+}
+.flow-node-num{font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:4px}
+.flow-node-name{font-size:12px;font-weight:600;margin-bottom:4px}
+.flow-node-desc{font-family:var(--mono);font-size:9.5px;color:var(--muted2);line-height:1.5}
+.flow-conn{
+  flex-shrink:0;width:32px;display:flex;align-items:center;justify-content:center;
+  color:var(--muted);font-size:12px;
+}
+.flow-node.a1{border-color:#22d3ee40;background:#22d3ee05}
+.flow-node.a2{border-color:#4ade8040;background:#4ade8005}
+.flow-node.a3{border-color:#f59e0b40;background:#f59e0b05}
+.flow-node.a4{border-color:#a78bfa40;background:#a78bfa05}
+.flow-node.db{border-color:#f8717140;background:#f8717105}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+<!-- HEADER -->
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-mark">⬡</div>
+      <div>
+        <div class="logo-text">AI Lead Gen System</div>
+        <div class="logo-sub">4-Agent B2B Outreach Pipeline · v0.1-prototype</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="live-badge"><div class="live-dot"></div>Demo Mode</div>
+    </div>
+  </div>
+
+  <!-- Pipeline Strip -->
+  <div class="pipeline-bar" id="pipeline-strip">
+    <div class="p-step done" id="ps0" onclick="showPage('research')">
+      <div class="p-dot"></div>Agent 1 · Research
+    </div>
+    <div class="p-arrow done" id="pa0"></div>
+    <div class="p-step done" id="ps1" onclick="showPage('scraper')">
+      <div class="p-dot"></div>Agent 2 · Scraper
+    </div>
+    <div class="p-arrow done" id="pa1"></div>
+    <div class="p-step active" id="ps2" onclick="showPage('outreach')">
+      <div class="p-dot"></div>Agent 3 · Outreach
+    </div>
+    <div class="p-arrow" id="pa2"></div>
+    <div class="p-step" id="ps3" onclick="showPage('dashboard')">
+      <div class="p-dot"></div>Agent 4 · Dashboard
+    </div>
+    <div class="p-arrow"></div>
+    <div class="p-step" id="ps4" onclick="showPage('arch')">
+      <div class="p-dot"></div>Architecture
+    </div>
+  </div>
+</header>
+
+<!-- METRICS -->
+<div class="metrics" style="margin-top:16px">
+  <div class="metric">
+    <div class="metric-label">Leads Discovered</div>
+    <div class="metric-val metric-accent2" id="m-leads">8</div>
+    <div class="metric-sub">EdTech India AI · session</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">Sites Crawled</div>
+    <div class="metric-val metric-accent" id="m-crawled">6</div>
+    <div class="metric-sub">2 pending · async queue</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">Emails Sent</div>
+    <div class="metric-val metric-accent3" id="m-sent">3</div>
+    <div class="metric-sub">1 awaiting approval</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">Replies Detected</div>
+    <div class="metric-val metric-accent5" id="m-replies">1</div>
+    <div class="metric-sub">33% reply rate · IMAP poll</div>
+  </div>
+</div>
+
+<!-- ═══════════════════ PAGE: RESEARCH ═══════════════════ -->
+<div class="page active" id="page-research">
+  <div class="main-grid">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Agent 1 — Lead Research</div>
+        <span class="panel-tag tag-green">GROQ + Tavily</span>
+      </div>
+      <div class="panel-body">
+        <div class="section-label">Search Configuration</div>
+        <div class="input-row">
+          <input value="EdTech India AI" id="keyword" readonly />
+          <select id="provider"><option>Tavily API</option><option>DuckDuckGo</option></select>
+          <button class="btn btn-primary" onclick="runAgent1Demo()">Run Agent 1 ▶</button>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="a1-bar"></div></div>
+        <div class="log" id="a1-log"></div>
+        <div class="leads-wrap">
+          <div class="section-label" style="margin-top:14px">Discovered & Scored Leads</div>
+          <table>
+            <thead><tr>
+              <th>Company</th><th>Domain</th><th>Industry</th>
+              <th>AI Score</th><th>Gaps Detected</th><th>Status</th>
+            </tr></thead>
+            <tbody id="leads-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="right-col">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Scoring Logic</div>
+          <span class="panel-tag tag-blue">LLM Prompt</span>
+        </div>
+        <div class="panel-body">
+          <div class="log" style="height:auto;min-height:100px;font-size:10.5px">
+<div class="log-line"><span class="log-dim">SYSTEM:</span></div>
+<div class="log-line"><span class="log-dim">You are a B2B AI sales researcher.</span></div>
+<div class="log-line"><span style="height:8px;display:block"></span></div>
+<div class="log-line"><span class="log-dim">USER:</span></div>
+<div class="log-line"><span class="log-info">Analyze this company URL and score</span></div>
+<div class="log-line"><span class="log-info">their need for AI services (0-100).</span></div>
+<div class="log-line"><span style="height:4px;display:block"></span></div>
+<div class="log-line"><span class="log-warn">- Score > 80: No AI team, manual ops</span></div>
+<div class="log-line"><span class="log-warn">- Score 60-79: Partial automation</span></div>
+<div class="log-line"><span class="log-err">- Score < 60: Skip (already uses AI)</span></div>
+<div class="log-line"><span style="height:4px;display:block"></span></div>
+<div class="log-line"><span class="log-dim">Output: JSON {ai_score, ai_gaps}</span></div>
+          </div>
+          <div style="margin-top:12px">
+            <div class="section-label">Output Schema (companies table)</div>
+            <div class="log" style="height:auto;font-size:10.5px">
+<div class="log-line"><span class="log-ok">{</span></div>
+<div class="log-line"><span style="padding-left:12px" class="log-dim">"domain": "learnify.in",</span></div>
+<div class="log-line"><span style="padding-left:12px" class="log-dim">"company_name": "Learnify India",</span></div>
+<div class="log-line"><span style="padding-left:12px" class="log-dim">"industry": "EdTech",</span></div>
+<div class="log-line"><span style="padding-left:12px" class="log-info">"ai_score": 88,</span></div>
+<div class="log-line"><span style="padding-left:12px" class="log-warn">"ai_gaps": "No adaptive learning"</span></div>
+<div class="log-line"><span class="log-ok">}</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ PAGE: SCRAPER ═══════════════════ -->
+<div class="page" id="page-scraper">
+  <div class="main-grid">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Agent 2 — Company Scraper + Intelligence</div>
+        <span class="panel-tag tag-green">crawl4ai AsyncWebCrawler</span>
+      </div>
+      <div class="panel-body">
+        <div class="section-label">Crawl Target</div>
+        <div class="input-row">
+          <input value="learnify.in" id="scrape-domain" readonly />
+          <button class="btn btn-primary" onclick="runAgent2Demo('learnify.in')">Crawl ▶</button>
+          <button class="btn" onclick="runCrawlAll()">Crawl All Pending</button>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="a2-bar"></div></div>
+        <div class="log" id="a2-log"></div>
+        <div id="enriched-container"></div>
+      </div>
+    </div>
+    <div class="right-col">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Crawl Architecture</div>
+          <span class="panel-tag tag-blue">Python asyncio</span>
+        </div>
+        <div class="panel-body">
+          <div class="log" style="height:auto;font-size:10.5px">
+<div class="log-line"><span class="log-ok">async def</span><span class="log-dim"> crawl_company(domain):</span></div>
+<div class="log-line"><span class="log-dim">  pages = ['/', '/contact',</span></div>
+<div class="log-line"><span class="log-dim">           '/services']</span></div>
+<div class="log-line"><span class="log-dim">  async with</span><span class="log-info"> AsyncWebCrawler()</span><span class="log-dim"> as c:</span></div>
+<div class="log-line"><span class="log-dim">    tasks = [c.arun(url=p)</span></div>
+<div class="log-line"><span class="log-dim">             for p in pages]</span></div>
+<div class="log-line"><span class="log-dim">    results = await</span></div>
+<div class="log-line"><span class="log-info">      asyncio.gather(*tasks,</span></div>
+<div class="log-line"><span class="log-info">        return_exceptions=True)</span></div>
+<div class="log-line"><span class="log-warn">  # Never crash on fail</span></div>
+<div class="log-line"><span class="log-dim">  # Raw → MongoDB</span></div>
+<div class="log-line"><span class="log-dim">  # Structured → PostgreSQL</span></div>
+          </div>
+          <div style="margin-top:12px">
+            <div class="section-label">Storage Targets</div>
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <div style="background:#f8717108;border:1px solid #f8717120;border-radius:7px;padding:8px 12px;font-family:var(--mono);font-size:10.5px;color:#f87171">
+                MongoDB — raw HTML, markdown, full page content
+              </div>
+              <div style="background:#4ade8008;border:1px solid #4ade8020;border-radius:7px;padding:8px 12px;font-family:var(--mono);font-size:10.5px;color:var(--accent)">
+                PostgreSQL — companies + contacts (structured)
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ PAGE: OUTREACH ═══════════════════ -->
+<div class="page" id="page-outreach">
+  <div class="main-grid">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Agent 3 — Outreach Microservice</div>
+        <span class="panel-tag tag-amber">FastAPI + SendGrid</span>
+      </div>
+      <div class="panel-body">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+          <button class="btn btn-primary" onclick="runAgent3Demo()">Generate Personalized Emails ▶</button>
+          <span id="a3-spin" style="display:none;font-family:var(--mono);font-size:11px;color:var(--accent3)">⟳ Generating via GROQ RAG...</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="a3-bar"></div></div>
+        <div class="log" id="a3-log">
+          <div class="log-line"><span class="log-info">[→]</span><span class="log-dim"> Agent 3 standing by. Click Generate to draft emails.</span></div>
+        </div>
+        <div style="margin-top:14px">
+          <div class="section-label">Approval Queue — Human-in-the-Loop</div>
+          <div id="approval-queue">
+            <div style="text-align:center;padding:30px;font-family:var(--mono);font-size:11px;color:var(--muted)">
+              No emails generated yet. Click "Generate Personalized Emails".
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="right-col">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">RAG Pipeline</div>
+          <span class="panel-tag tag-amber">pgvector</span>
+        </div>
+        <div class="panel-body">
+          <div class="section-label">5 Targeted Questions</div>
+          <div style="display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:11px;color:var(--muted2)">
+            <div style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px">1. What manual processes exist?</div>
+            <div style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px">2. What tech stack are they using?</div>
+            <div style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px">3. What are the core pain points?</div>
+            <div style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px">4. Who are the decision makers?</div>
+            <div style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px">5. What is their core product?</div>
+          </div>
+          <div style="margin-top:12px">
+            <div class="section-label">FastAPI Endpoint</div>
+            <div class="log" style="height:auto;font-size:10.5px">
+<div class="log-line"><span class="log-ok">POST</span><span class="log-dim"> /api/send-email</span></div>
+<div class="log-line"><span class="log-dim">{</span></div>
+<div class="log-line"><span style="padding-left:12px" class="log-dim">"to": "cto@company.com",</span></div>
+<div class="log-line"><span style="padding-left:12px" class="log-dim">"subject": "...",</span></div>
+<div class="log-line"><span style="padding-left:12px" class="log-dim">"body": "..."</span></div>
+<div class="log-line"><span class="log-dim">}</span></div>
+<div class="log-line"><span class="log-warn"># Only fires AFTER approval</span></div>
+<div class="log-line"><span class="log-dim"># Sent via SendGrid API</span></div>
+<div class="log-line"><span class="log-dim"># Logged to outreach table</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ PAGE: DASHBOARD ═══════════════════ -->
+<div class="page" id="page-dashboard">
+  <div class="panel" style="margin-bottom:16px">
+    <div class="panel-header">
+      <div class="panel-title">Agent 4 — Reporting Dashboard</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="panel-tag tag-purple">Django · Read-only</span>
+        <button class="btn btn-sm" onclick="pollRepliesDemo()">Poll Replies Now</button>
+        <span id="poll-status" style="font-family:var(--mono);font-size:10px;color:var(--muted)">Next auto-poll in 15 min</span>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="dash-section">
+        <div class="dash-section-title">Outreach Records</div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr>
+              <th>Company</th><th>Contact</th><th>Role</th>
+              <th>Subject</th><th>Status</th><th>Sent At</th><th>Reply</th>
+            </tr></thead>
+            <tbody id="dashboard-tbody">
+              <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px;font-family:var(--mono);font-size:11px">Run the full pipeline to see outreach records.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="dash-section">
+        <div class="dash-section-title">Lead Intelligence</div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr>
+              <th>Company</th><th>Domain</th><th>AI Score</th><th>Crawl Status</th><th>Mongo Doc</th><th>DNC</th>
+            </tr></thead>
+            <tbody id="intel-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ PAGE: ARCHITECTURE ═══════════════════ -->
+<div class="page" id="page-arch">
+  <div class="panel" style="margin-bottom:16px">
+    <div class="panel-header">
+      <div class="panel-title">System Architecture</div>
+      <span class="panel-tag tag-gray">Reference View</span>
+    </div>
+    <div class="panel-body">
+
+      <!-- Flow Diagram -->
+      <div class="flow-section">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:14px;text-transform:uppercase;letter-spacing:0.08em">Pipeline Data Flow</div>
+        <div class="flow-row">
+          <div class="flow-node a1">
+            <div class="flow-node-num">AGENT 1</div>
+            <div class="flow-node-name">Research</div>
+            <div class="flow-node-desc">Tavily → GROQ → Score 0–100</div>
+          </div>
+          <div class="flow-conn">→</div>
+          <div class="flow-node db">
+            <div class="flow-node-num">PostgreSQL</div>
+            <div class="flow-node-name">companies</div>
+            <div class="flow-node-desc">domain, ai_score, gaps</div>
+          </div>
+          <div class="flow-conn">→</div>
+          <div class="flow-node a2">
+            <div class="flow-node-num">AGENT 2</div>
+            <div class="flow-node-name">Scraper</div>
+            <div class="flow-node-desc">crawl4ai → MongoDB + PG</div>
+          </div>
+          <div class="flow-conn">→</div>
+          <div class="flow-node a3">
+            <div class="flow-node-num">AGENT 3</div>
+            <div class="flow-node-name">Outreach</div>
+            <div class="flow-node-desc">RAG → Draft → Approve → Send</div>
+          </div>
+          <div class="flow-conn">→</div>
+          <div class="flow-node a4">
+            <div class="flow-node-num">AGENT 4</div>
+            <div class="flow-node-name">Dashboard</div>
+            <div class="flow-node-desc">Django · IMAP poll · Read-only</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Agents Grid -->
+      <div class="section-label">Agent Details</div>
+      <div class="arch-grid">
+        <div class="arch-agent" style="border-color:#22d3ee25">
+          <div class="arch-agent-num">AGENT 1</div>
+          <div class="arch-agent-name" style="color:var(--accent2)">Lead Research Agent</div>
+          <div class="arch-agent-desc">Takes industry keyword → queries Tavily/DuckDuckGo → passes each URL to GROQ LLM with scoring prompt → filters false positives → writes JSON to companies table.</div>
+          <div class="arch-stack">
+            <span class="stack-chip">GROQ API</span><span class="stack-chip">Tavily</span><span class="stack-chip">DuckDuckGo</span><span class="stack-chip">PostgreSQL</span><span class="stack-chip">Python asyncio</span>
+          </div>
+        </div>
+        <div class="arch-agent" style="border-color:#4ade8025">
+          <div class="arch-agent-num">AGENT 2</div>
+          <div class="arch-agent-name" style="color:var(--accent)">Scraper + Intelligence Agent</div>
+          <div class="arch-agent-desc">Reads domains from Agent 1 → crawl4ai AsyncWebCrawler on homepage /contact /services → LLM summarizes + detects pain points → raw to MongoDB, structured to PostgreSQL contacts table.</div>
+          <div class="arch-stack">
+            <span class="stack-chip">crawl4ai</span><span class="stack-chip">GROQ</span><span class="stack-chip">MongoDB</span><span class="stack-chip">PostgreSQL</span><span class="stack-chip">asyncio.gather</span>
+          </div>
+        </div>
+        <div class="arch-agent" style="border-color:#f59e0b25">
+          <div class="arch-agent-num">AGENT 3</div>
+          <div class="arch-agent-name" style="color:var(--accent3)">Outreach Microservice</div>
+          <div class="arch-agent-desc">Embeds enriched profile into pgvector → RAG answers 5 targeted questions → GROQ drafts highly personalized email → Human approval step → FastAPI POST to SendGrid → logs to outreach table.</div>
+          <div class="arch-stack">
+            <span class="stack-chip">FastAPI</span><span class="stack-chip">SendGrid</span><span class="stack-chip">pgvector</span><span class="stack-chip">RAG</span><span class="stack-chip">GROQ</span><span class="stack-chip">Human-in-loop</span>
+          </div>
+        </div>
+        <div class="arch-agent" style="border-color:#a78bfa25">
+          <div class="arch-agent-num">AGENT 4</div>
+          <div class="arch-agent-name" style="color:var(--accent5)">Dashboard + Tracking Agent</div>
+          <div class="arch-agent-desc">Django reads all 3 tables (read-only). Background job polls Gmail API / IMAP every 15 min. Matches incoming threads by subject/thread ID. Updates replied, reply_content, reply_at in outreach table.</div>
+          <div class="arch-stack">
+            <span class="stack-chip">Django</span><span class="stack-chip">Gmail API</span><span class="stack-chip">IMAP</span><span class="stack-chip">Celery</span><span class="stack-chip">PostgreSQL</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- DB Schema -->
+      <div class="section-label" style="margin-top:4px">Database Schema — PostgreSQL (3 Tables)</div>
+      <div class="db-grid">
+        <div class="db-table">
+          <div class="db-title">companies</div>
+          <div class="db-field"><span class="db-pk">id</span><span class="db-type">INT PK</span></div>
+          <div class="db-field"><span class="db-unique">domain</span><span class="db-type">VARCHAR UNIQUE</span></div>
+          <div class="db-field"><span>company_name</span><span class="db-type">VARCHAR</span></div>
+          <div class="db-field"><span>industry</span><span class="db-type">VARCHAR</span></div>
+          <div class="db-field"><span>ai_score</span><span class="db-type">INT 0–100</span></div>
+          <div class="db-field"><span>ai_gaps_detected</span><span class="db-type">TEXT</span></div>
+          <div class="db-field"><span>crawl_status</span><span class="db-type">ENUM</span></div>
+          <div class="db-field"><span>mongo_doc_id</span><span class="db-type">VARCHAR</span></div>
+          <div class="db-field"><span>do_not_contact</span><span class="db-type">BOOLEAN</span></div>
+        </div>
+        <div class="db-table">
+          <div class="db-title">contacts</div>
+          <div class="db-field"><span class="db-pk">id</span><span class="db-type">INT PK</span></div>
+          <div class="db-field"><span class="db-fk">company_id</span><span class="db-type">FK → companies</span></div>
+          <div class="db-field"><span>contact_name</span><span class="db-type">VARCHAR</span></div>
+          <div class="db-field"><span class="db-unique">contact_email</span><span class="db-type">UNIQUE</span></div>
+          <div class="db-field"><span>contact_phone</span><span class="db-type">VARCHAR</span></div>
+          <div class="db-field"><span>contact_role</span><span class="db-type">VARCHAR</span></div>
+          <div class="db-field"><span>source_page</span><span class="db-type">VARCHAR</span></div>
+        </div>
+        <div class="db-table">
+          <div class="db-title">outreach</div>
+          <div class="db-field"><span class="db-pk">id</span><span class="db-type">INT PK</span></div>
+          <div class="db-field"><span class="db-fk">contact_id</span><span class="db-type">FK → contacts</span></div>
+          <div class="db-field"><span class="db-fk">company_id</span><span class="db-type">FK → companies</span></div>
+          <div class="db-field"><span>status</span><span class="db-type">ENUM</span></div>
+          <div class="db-field"><span>email_subject</span><span class="db-type">VARCHAR</span></div>
+          <div class="db-field"><span>email_body</span><span class="db-type">TEXT</span></div>
+          <div class="db-field"><span>sent_at</span><span class="db-type">TIMESTAMP</span></div>
+          <div class="db-field"><span>replied</span><span class="db-type">BOOLEAN</span></div>
+          <div class="db-field"><span>reply_content</span><span class="db-type">TEXT</span></div>
+          <div class="db-field"><span>follow_up_count</span><span class="db-type">INT def 0</span></div>
+        </div>
+      </div>
+
+      <!-- Tech Stack -->
+      <div class="section-label" style="margin-top:4px">Tech Stack</div>
+      <div style="display:flex;flex-wrap:wrap;gap:7px">
+        <span style="font-family:var(--mono);font-size:11px;padding:5px 12px;border-radius:6px;background:#22d3ee10;border:1px solid #22d3ee25;color:var(--accent2)">GROQ LLM (llama3)</span>
+        <span style="font-family:var(--mono);font-size:11px;padding:5px 12px;border-radius:6px;background:#4ade8010;border:1px solid #4ade8025;color:var(--accent)">crawl4ai AsyncWebCrawler</span>
+        <span style="font-family:var(--mono);font-size:11px;padding:5px 12px;border-radius:6px;background:#f59e0b10;border:1px solid #f59e0b25;color:var(--accent3)">FastAPI + SendGrid</span>
+        <span style="font-family:var(--mono);font-size:11px;padding:5px 12px;border-radius:6px;background:#a78bfa10;border:1px solid #a78bfa25;color:var(--accent5)">Django Dashboard</span>
+        <span style="font-family:var(--mono);font-size:11px;padding:5px 12px;border-radius:6px;background:#f8717110;border:1px solid #f8717125;color:var(--accent4)">PostgreSQL + pgvector</span>
+        <span style="font-family:var(--mono);font-size:11px;padding:5px 12px;border-radius:6px;background:#ffffff08;border:1px solid var(--border2);color:var(--muted2)">MongoDB (raw crawl)</span>
+        <span style="font-family:var(--mono);font-size:11px;padding:5px 12px;border-radius:6px;background:#ffffff08;border:1px solid var(--border2);color:var(--muted2)">Tavily API</span>
+        <span style="font-family:var(--mono);font-size:11px;padding:5px 12px;border-radius:6px;background:#ffffff08;border:1px solid var(--border2);color:var(--muted2)">SQLAlchemy ORM</span>
+        <span style="font-family:var(--mono);font-size:11px;padding:5px 12px;border-radius:6px;background:#ffffff08;border:1px solid var(--border2);color:var(--muted2)">Python asyncio / Celery</span>
+        <span style="font-family:var(--mono);font-size:11px;padding:5px 12px;border-radius:6px;background:#ffffff08;border:1px solid var(--border2);color:var(--muted2)">Gmail API / IMAP</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div>AI Lead Gen Agentic System · Prototype Demo</div>
+  <div>Built with Python · GROQ · crawl4ai · FastAPI · Django</div>
+</footer>
+
+</div><!-- /shell -->
+
+<script>
+// ─────────────────────────────────────────────
+// BASE API CONFIG
+// ─────────────────────────────────────────────
+const API_BASE = 'http://127.0.0.1:8000/api';
+
+// ─────────────────────────────────────────────
+// UTILS & STATE
+// ─────────────────────────────────────────────
+const state = {
+  keyword: 'EdTech India AI',
+  companies: [],
+  outreach: [],
+  approvals: [],
+  stats: {}
+};
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function scoreColor(s) { return s >= 80 ? '#4ade80' : s >= 60 ? '#f59e0b' : '#f87171'; }
+
+function addLog(id, msg, cls='') {
+  const log = document.getElementById(id);
+  if (!log) return;
+  const ts = new Date().toLocaleTimeString('en');
+  log.innerHTML += `<div class="log-line fade-in"><span class="log-ts">${ts}</span><span class="${cls}">${msg}</span></div>`;
+  log.scrollTop = log.scrollHeight;
+}
+
+async function animBar(id, ms) {
+  const bar = document.getElementById(id);
+  if(!bar) return;
+  bar.style.width = '0%';
+  const steps = 40;
+  for(let i=1; i<=steps; i++) {
+    await sleep(ms/steps);
+    bar.style.width = (i/steps*100) + '%';
+  }
+}
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  const steps = ['research','scraper','outreach','dashboard','arch'];
+  document.querySelectorAll('.p-step').forEach((s,i) => {
+    s.classList.toggle('active', steps[i] === name);
+  });
+  if(name === 'research') fetchCompanies();
+  if(name === 'dashboard') { fetchOutreach(); fetchStats(); }
+  if(name === 'outreach') fetchApprovals();
+}
+
+// ─────────────────────────────────────────────
+// DATA FETCHING (LIVE API)
+// ─────────────────────────────────────────────
+
+async function fetchStats() {
+  try {
+    const res = await fetch(`${API_BASE}/dashboard/stats/`);
+    if(!res.ok) return;
+    const data = await res.json();
+    state.stats = data;
+    document.getElementById('m-leads').textContent = data.leads_discovered || 0;
+    document.getElementById('m-crawled').textContent = data.sites_crawled || 0;
+    document.getElementById('m-sent').textContent = data.emails_dispatched || 0;
+    document.getElementById('m-replies').textContent = data.replies_detected || 0;
+  } catch(e) { console.error("Stats Error:", e); }
+}
+
+async function fetchCompanies() {
+  try {
+    const res = await fetch(`${API_BASE}/companies/`);
+    if(!res.ok) return;
+    state.companies = await res.json();
+    renderLeads();
+    renderEnriched();
+  } catch(e) { console.error("Companies Error:", e); }
+}
+
+async function fetchOutreach() {
+  try {
+    const res = await fetch(`${API_BASE}/outreach/`);
+    if(!res.ok) return;
+    state.outreach = await res.json();
+    renderDashboard();
+  } catch(e) { console.error("Outreach Error:", e); }
+}
+
+async function fetchApprovals() {
+  try {
+    const res = await fetch(`${API_BASE}/agent/approvals/`);
+    if(!res.ok) return;
+    const data = await res.json();
+    state.approvals = data.data || [];
+    renderApprovalQueue();
+  } catch(e) { console.error("Approvals Error:", e); }
+}
+
+// ─────────────────────────────────────────────
+// RENDER VIEWS
+// ─────────────────────────────────────────────
+
+function renderLeads() {
+  const tb = document.getElementById('leads-tbody');
+  if(!tb) return;
+  if(!state.companies.length) {
+    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted);font-family:var(--mono);font-size:11px">No leads discovered yet.</td></tr>';
+    return;
+  }
+  tb.innerHTML = state.companies.map(c => `
+    <tr>
+      <td><div class="co-name">${c.company_name}</div></td>
+      <td><span class="domain">${c.domain}</span></td>
+      <td><span class="industry">${c.industry || '—'}</span></td>
+      <td>
+        <div class="score-wrap">
+          <div class="score-track"><div class="score-fill" style="width:${c.ai_score || 0}%;background:${scoreColor(c.ai_score || 0)}"></div></div>
+          <span class="score-num" style="color:${scoreColor(c.ai_score || 0)}">${c.ai_score || 0}</span>
+        </div>
+      </td>
+      <td style="color:var(--muted2);font-family:var(--mono);font-size:10.5px;max-width:180px">${(c.ai_gaps_detected||'').substring(0,60)}</td>
+      <td><span class="pill pill-${c.crawl_status}">${c.crawl_status}</span></td>
+    </tr>
+  `).join('');
+}
+
+function renderEnriched() {
+  const c = document.getElementById('enriched-container');
+  if(!c) return;
+  const enrichedCompanies = state.companies.filter(comp => comp.crawl_status === 'done');
+  
+  if(!enrichedCompanies.length) {
+     c.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:11px;font-family:var(--mono)">No enriched profiles. Run scraper first.</div>';
+     return; 
+  }
+  
+  c.innerHTML = `<div class="section-label" style="margin-top:14px">Enriched Lead Profiles</div>` +
+    enrichedCompanies.map(p => `
+      <div class="profile-card fade-in">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="font-weight:600;font-size:13px">${p.company_name}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted)">${p.domain}</div>
+        </div>
+        <div class="profile-section">
+          <div class="profile-label">Industry</div>
+          <div class="profile-value">${p.industry || 'Unknown'}</div>
+        </div>
+        <div class="profile-section">
+          <div class="profile-label">Services / Offerings</div>
+          <div class="tag-list">${(p.services_offered||'Unknown').split(',').map(s=>`<span class="service-tag">${s.trim()}</span>`).join('')}</div>
+        </div>
+        <div class="profile-section">
+          <div class="profile-label">AI Gaps / Pain Points</div>
+          <div class="pain-box">${p.ai_gaps_detected || 'Processing...'}</div>
+        </div>
+        <div class="profile-section">
+          <div class="profile-label">AI Recommendations</div>
+          <div class="oppo-box">${p.ai_recommendations || 'Processing...'}</div>
+        </div>
+        ${(p.contacts||[]).map(ct => `
+          <div class="contact-row">
+            <div class="avatar">${ct.contact_name? ct.contact_name[0]: '?'}</div>
+            <div class="contact-info">
+              <div class="name">${ct.contact_name || 'Unknown'}</div>
+              <div class="role">${ct.contact_role || 'Contact'} · ${ct.contact_phone || ''}</div>
+              <div class="email">${ct.contact_email}</div>
+            </div>
+            <div style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--muted)">src: ${ct.source_page || '-'}</div>
+          </div>
+        `).join('')}
+      </div>
+    `).join('');
+}
+
+function renderApprovalQueue() {
+  const q = document.getElementById('approval-queue');
+  if(!q) return;
+  if(!state.approvals.length) {
+    q.innerHTML = '<div style="text-align:center;padding:30px;font-family:var(--mono);font-size:11px;color:var(--muted)">Queue is empty. Waiting for outreach generation.</div>';
+    return;
+  }
+  q.innerHTML = state.approvals.map((r, i) => `
+    <div class="email-card fade-in">
+      <div class="email-card-header">
+        <div>
+          <div class="email-co">${r.company_name}</div>
+          <div class="email-to">To: ${r.contact_name || 'Contact'} (${r.contact_role || 'Team'}) · ${r.contact_email}</div>
+        </div>
+        <span class="pill pill-drafted">drafted</span>
+      </div>
+      <div class="email-subject">Subject: <input type="text" id="subj-${r.id}" value="${r.subject}" style="width:70%; background:transparent; border:1px solid var(--border); color:var(--text); padding:4px;"></div>
+      <div class="email-body-preview"><textarea id="body-${r.id}" style="width:100%; height:120px; background:var(--bg); border:1px solid var(--border); color:var(--text); font-family:var(--sans); padding:8px; line-height:1.5">${r.body}</textarea></div>
+      <div class="email-actions" style="margin-top:10px;">
+        <button class="btn btn-send btn-sm" onclick="approveEmail(${r.id})">✓ Approve & Send</button>
+        <button class="btn btn-skip btn-sm" onclick="skipEmail(${r.id})">✗ Skip</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderDashboard() {
+  const tb = document.getElementById('dashboard-tbody');
+  const it = document.getElementById('intel-tbody');
+  if(!tb || !it) return;
+
+  if(!state.outreach.length) {
+    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted);font-family:var(--mono);font-size:11px">No outreach data available.</td></tr>';
+  } else {
+     tb.innerHTML = state.outreach.map(r => `
+      <tr>
+        <td><div class="co-name">${r.company_name || 'Company'}</div></td>
+        <td style="font-size:12px">${r.contact_name || 'Contact'}</td>
+        <td><span class="industry">${r.contact_email || ''}</span></td>
+        <td style="max-width:200px;font-family:var(--mono);font-size:10px;color:var(--muted2)">${(r.subject||'').substring(0,40)}...</td>
+        <td><span class="pill pill-${r.status}">${r.status}</span></td>
+        <td style="font-family:var(--mono);font-size:10px;color:var(--muted)">${new Date(r.sent_at || r.created_at).toLocaleString() || '—'}</td>
+        <td>
+          ${r.replied
+            ? '<div class="reply-badge"><div class="reply-dot"></div><span style="font-family:var(--mono);font-size:10px;color:var(--accent5)">Replied</span></div>'
+            : '<span style="font-family:var(--mono);font-size:10px;color:var(--muted)">—</span>'}
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  it.innerHTML = state.companies.map(c => `
+    <tr>
+      <td><div class="co-name">${c.company_name}</div></td>
+      <td><span class="domain">${c.domain}</span></td>
+      <td>
+        <div class="score-wrap">
+          <div class="score-track"><div class="score-fill" style="width:${c.ai_score||0}%;background:${scoreColor(c.ai_score||0)}"></div></div>
+          <span class="score-num" style="color:${scoreColor(c.ai_score||0)}">${c.ai_score||0}</span>
+        </div>
+      </td>
+      <td><span class="pill pill-${c.crawl_status}">${c.crawl_status}</span></td>
+      <td style="font-family:var(--mono);font-size:10px;color:var(--muted)">Live DB</td>
+      <td><span style="font-family:var(--mono);font-size:10px;${c.do_not_contact? 'color:var(--accent4)':'color:var(--accent)'}">${c.do_not_contact}</span></td>
+    </tr>
+  `).join('');
+}
+
+
+// ─────────────────────────────────────────────
+// PIPELINE CONTROL LOGIC
+// ─────────────────────────────────────────────
+
+async function runAgent1Demo() {
+  const keyword = document.getElementById('keyword').value || state.keyword;
+  addLog('a1-log', `[INIT] Triggering full pipeline async for: ${keyword}`, 'log-info');
+  animBar('a1-bar', 3000);
+  
+  try {
+     const res = await fetch(`${API_BASE}/agent/trigger/`, {
+       method: 'POST',
+       headers: {'Content-Type': 'application/json'},
+       body: JSON.stringify({ keyword })
+     });
+     if(res.ok) {
+       addLog('a1-log', '[LIVE] Pipeline triggered successfully on backend.', 'log-ok');
+       addLog('a1-log', '[INFO] Watch the dashboard or agent terminals to see state updates.', 'log-dim');
+       pollPipelineStatus();
+     } else {
+       addLog('a1-log', '[ERR] Failed to trigger pipeline.', 'log-err');
+     }
+  } catch(e) { addLog('a1-log', '[ERR] API connection failed.', 'log-err'); }
+}
+
+async function runAgent2Demo(domain) {
+  addLog('a2-log', `[INFO] Scraper is handled mostly by Agent Pipeline running async. Wait for sync.`, 'log-info');
+  fetchCompanies();
+}
+
+async function runAgent3Demo() {
+  addLog('a3-log', `[INFO] Outreach generation runs automatically after Gap Analysis in the async pipeline.`, 'log-warn');
+  fetchApprovals();
+}
+
+async function runCrawlAll() {
+  fetchCompanies();
+}
+
+let pollingInterval = null;
+function pollPipelineStatus() {
+  if(pollingInterval) clearInterval(pollingInterval);
+  pollingInterval = setInterval(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/agent/status/`);
+      if(res.ok) {
+        const status = await res.json();
+        if(status.is_running === false) {
+          clearInterval(pollingInterval);
+          addLog('a1-log', '[DON] Pipeline marked as finished by backend.', 'log-ok');
+          fetchStats();
+          fetchCompanies();
+          fetchApprovals();
+          fetchOutreach();
+        } else {
+          addLog('a1-log', `[SYNC] Pipeline active...`, 'log-dim');
+          fetchStats();
+          fetchCompanies();
+        }
+      }
+    } catch(e) {}
+  }, 5000); // Check every 5s
+}
+
+// ─────────────────────────────────────────────
+// APPROVALS ACTIONS
+// ─────────────────────────────────────────────
+
+async function approveEmail(id) {
+  const updatedSubj = document.getElementById(`subj-${id}`)?.value;
+  const updatedBody = document.getElementById(`body-${id}`)?.value;
+  try {
+    const res = await fetch(`${API_BASE}/agent/approvals/${id}/approve/`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ edited_subject: updatedSubj, edited_body: updatedBody })
+    });
+    if(res.ok) {
+      fetchApprovals();
+      fetchOutreach();
+      fetchStats();
+    }
+  } catch(e) { console.error(e); }
+}
+
+async function skipEmail(id) {
+  try {
+    const res = await fetch(`${API_BASE}/agent/approvals/${id}/skip/`, {
+      method: 'POST'
+    });
+    if(res.ok) fetchApprovals();
+  } catch(e) { console.error(e); }
+}
+
+// Polling placeholder for UI, actual poll will be the background chron
+async function pollRepliesDemo() {
+  document.getElementById('poll-status').textContent='Polling from DB / IMAP Tracker...';
+  await sleep(1500);
+  fetchStats();
+  fetchOutreach();
+  document.getElementById('poll-status').textContent='UI refreshed from database.';
+}
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+(async function init() {
+  await fetchStats();
+  await fetchCompanies();
+  await fetchApprovals();
+  await fetchOutreach();
+  
+  const a1=document.getElementById('a1-log');
+  const a2=document.getElementById('a2-log');
+  const a3=document.getElementById('a3-log');
+  if(a1) a1.innerHTML=`<div class="log-line"><span class="log-ts">--:--:--</span><span class="log-ok">[READY] Agent 1 UI initialized. Connected to live API.</span></div>`;
+  if(a2) a2.innerHTML=`<div class="log-line"><span class="log-ts">--:--:--</span><span class="log-info">[READY] Agent 2 crawler dashboard active.</span></div>`;
+  if(a3) a3.innerHTML=`<div class="log-line"><span class="log-ts">--:--:--</span><span class="log-warn">[READY] Agent 3 Outreach awaiting manual triggers or pipeline signals.</span></div>`;
+})();
+</script>
+</body>
+</html>
