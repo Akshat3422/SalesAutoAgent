@@ -444,18 +444,24 @@ def _normalize_contact_candidates(value: Any) -> List[Dict[str, Any]]:
     return out[:5]
 
 
-async def _safe_search(search_tool: DuckDuckGoSearchRun, query: str, context: str) -> Optional[str]:
-    try:
-        result = await asyncio.to_thread(search_tool.run, query)
-    except Exception as exc:
-        logger.warning(f"[Search] {context}: {type(exc).__name__}")
-        return None
-
-    if not isinstance(result, str):
-        return None
-
-    cleaned = result.strip()
-    return cleaned or None
+async def _safe_search(search_tool: DuckDuckGoSearchRun, query: str, context: str, retries: int = 3) -> Optional[str]:
+    for attempt in range(retries):
+        try:
+            result = await asyncio.to_thread(search_tool.run, query)
+            if isinstance(result, str):
+                cleaned = result.strip()
+                if cleaned:
+                    return cleaned
+            return None
+        except Exception as exc:
+            exc_name = type(exc).__name__
+            if attempt < retries - 1:
+                logger.warning(f"[Search] {context}: {exc_name} - Retrying ({attempt + 1}/{retries})...")
+                await asyncio.sleep(2 ** attempt + 3)
+            else:
+                logger.warning(f"[Search] {context}: {exc_name} - Final failure after {retries} attempts")
+                return None
+    return None
 
 
 def _format_contact_summary(contacts: List[Dict[str, Any]]) -> str:
@@ -658,12 +664,13 @@ async def research_node(state: AgentState) -> AgentState:
     ]
     all_results = ""
     for q in queries:
-        try:
-            result = search.run(q)
+        result = await _safe_search(search, q, context=f"research/{keyword}")
+        if result:
             logger.info(f"[Node 1] Query '{q}' -> {len(result)} chars")
             all_results += result + "\n"
-        except Exception as e:
-            logger.warning(f"[Node 1] Search query failed: {q} — {e}")
+        else:
+            logger.warning(f"[Node 1] Search query failed or empty: {q}")
+        await asyncio.sleep(2)
 
     logger.info(f"[Node 1] Total search text length: {len(all_results)}")
 
@@ -796,12 +803,14 @@ async def discover_buyer_contacts_node(state: AgentState) -> AgentState:
             result = await _safe_search(search, query, context=f"buyer_contacts/{company_name}")
             if result:
                 search_blocks.append(f"Query: {query}\n{result[:1800]}")
+                await asyncio.sleep(2)
                 continue
 
             failed_searches += 1
             if failed_searches >= BUYER_SEARCH_FAILURE_LIMIT:
                 logger.info(f"[Node 1B] {company_name}: stopping external people-search after repeated failures")
                 break
+            await asyncio.sleep(2)
 
         if not search_blocks:
             logger.info(f"[Node 1B] {company_name}: no search evidence found for buyer contacts")
@@ -870,10 +879,11 @@ async def discover_buyer_contacts_node(state: AgentState) -> AgentState:
             logger.info(f"[Node 1B] {company_name} | domain: {domain} | saved 0 buyer contacts")
         return saved_contacts
 
-    role_sem = asyncio.Semaphore(4)
+    role_sem = asyncio.Semaphore(1)
 
     async def _process_with_sem(tgt: Dict[str, Any]) -> List[Dict[str, Any]]:
         async with role_sem:
+            await asyncio.sleep(2)
             return await process_target(tgt)
 
     results = await asyncio.gather(*[_process_with_sem(tgt) for tgt in target_domains], return_exceptions=True)
@@ -1040,9 +1050,13 @@ async def scrape_node(state: AgentState) -> AgentState:
     cfg = BrowserConfig(
         headless=True,
         verbose=False,
-        extra_args=['--no-sandbox', '--disable-setuid-sandbox'],
+        extra_args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
     )
-    crawler_run_cfg = CrawlerRunConfig(wait_until="domcontentloaded", page_timeout=25000, semaphore_count=10)
+    crawler_run_cfg = CrawlerRunConfig(
+        wait_until="domcontentloaded", 
+        page_timeout=60000, 
+        semaphore_count=10
+    )
     crawl_sem = asyncio.Semaphore(10)
 
     def _extract_suburls(html: str, base_url: str) -> List[Tuple[str, int]]:
