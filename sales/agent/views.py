@@ -1,9 +1,13 @@
 import asyncio
 import json
+import threading
+import requests
 from collections import defaultdict
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 from django.utils import timezone
+from asgiref.sync import sync_to_async
 from .graph import execute_pipeline
 from sales.outreach.models import Outreach
 from sales.contacts.models import Contact
@@ -23,16 +27,22 @@ _PIPELINE_STATUS = {
 _background_tasks = set()
 
 @csrf_exempt
-async def agent_trigger_view(request):
-    """
-    Endpoint to trigger the asynchronous agent pipeline.
-    Expects passing a 'keyword' parameter.
-    """
+@require_http_methods(["POST", "OPTIONS"])
+def agent_trigger_view(request):
+    if request.method == 'OPTIONS':
+        return JsonResponse({"status": "ok"})
+    
     if request.method == 'POST':
+        if _PIPELINE_STATUS["is_running"]:
+            return JsonResponse(
+                {"error": "Pipeline already running", "current_keyword": _PIPELINE_STATUS["current_keyword"]},
+                status=409
+            )
+        
         try:
             data = json.loads(request.body)
             keyword = data.get('keyword', 'EdTech India AI')
-        except:
+        except Exception:
             keyword = 'EdTech India AI'
             
         _PIPELINE_STATUS["is_running"] = True
@@ -41,25 +51,39 @@ async def agent_trigger_view(request):
         _PIPELINE_STATUS["finished_at"] = None
         _PIPELINE_STATUS["last_error"] = None
 
-        async def run_and_clear():
+        def run_pipeline_background():
+            from django.db import connections
+            connections.close_all()
+            
+            loop = None
             try:
-                await execute_pipeline(keyword)
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(execute_pipeline(keyword))
             except Exception as exc:
                 _PIPELINE_STATUS["last_error"] = str(exc)
             finally:
                 _PIPELINE_STATUS["is_running"] = False
                 _PIPELINE_STATUS["current_keyword"] = None
                 _PIPELINE_STATUS["finished_at"] = timezone.now().isoformat()
-
-        # Fire and forget mechanism safely
-        task = asyncio.create_task(run_and_clear())
-        _background_tasks.add(task)
-        task.add_done_callback(_background_tasks.discard)
+                try:
+                    connections.close_all()
+                except Exception:
+                    pass
+                if loop and not loop.is_closed():
+                    loop.close()
+        # ✅ FIXED: thread.start() and return are OUTSIDE the finally block
+        #    and INSIDE the `if request.method == 'POST':` block
+        thread = threading.Thread(target=run_pipeline_background, daemon=True)
+        thread.start()
 
         return JsonResponse(
             {"message": "Agent pipeline triggered successfully.", "keyword": keyword},
             status=202
         )
+
+    # This line is only reached for non-POST, non-OPTIONS methods
+    # but @require_http_methods already blocks those — kept for safety
     return JsonResponse({"error": "Only POST allowed"}, status=405)
 
 
@@ -158,7 +182,8 @@ def grouped_company_outreach_view(request):
 @csrf_exempt
 def approve_outreach_view(request, outreach_id):
     """
-    POST: Approve an email. Optionally accept edits to subject and body.
+    POST: Approve an email and automatically send it via email_service.
+    Optionally accept edits to subject and body.
     """
     if request.method == 'POST':
         try:
@@ -171,39 +196,60 @@ def approve_outreach_view(request, outreach_id):
         except json.JSONDecodeError:
             data = {}
 
+        # Update subject/body if provided
         if "edited_subject" in data:
             outreach.edited_subject = data["edited_subject"]
         if "edited_body" in data:
             outreach.edited_body = data["edited_body"]
 
-        send_now = bool(data.get("send_now", False))
+        # Mark as approved
         outreach.status = 'approved'
         outreach.approved_at = timezone.now()
         outreach.save()
 
-        if send_now:
-            send_result = send_approved_outreach(outreach)
-            if send_result.get("ok"):
-                outreach.status = 'sent'
-                outreach.sent_at = timezone.now()
-                outreach.sendgrid_message_id = send_result.get("message_id")
-                outreach.save(update_fields=["status", "sent_at", "sendgrid_message_id", "updated_at"])
-                return JsonResponse(
-                    {"status": "success", "message": f"Outreach {outreach_id} approved and sent."}
+        # Get the email content
+        subject = outreach.edited_subject or outreach.email_subject
+        body = outreach.edited_body or outreach.email_body
+
+        # Send email via email_service microservice
+        def send_email_async():
+            try:
+                email_service_url = "http://localhost:8001"
+                response = requests.post(
+                    f"{email_service_url}/api/send-email",
+                    json={
+                        "to_email": outreach.contact.contact_email,
+                        "subject": subject,
+                        "body": body,
+                        "contact_name": outreach.contact.contact_name,
+                        "company_name": outreach.company.company_name,
+                    },
+                    timeout=10
                 )
+                
+                if response.status_code in [200, 202]:
+                    outreach.status = 'sent'
+                    outreach.sent_at = timezone.now()
+                    outreach.save(update_fields=["status", "sent_at", "updated_at"])
+                    print(f"✓ Email sent to {outreach.contact.contact_email}")
+                else:
+                    outreach.status = 'approved'  # Stay approved, retry later
+                    outreach.save(update_fields=["status", "updated_at"])
+                    print(f"⚠ Email service returned {response.status_code}")
+            except Exception as e:
+                outreach.status = 'approved'  # Stay approved, retry later
+                outreach.save(update_fields=["status", "updated_at"])
+                print(f"❌ Email send error: {str(e)}")
 
-            outreach.status = 'failed'
-            outreach.save(update_fields=["status", "updated_at"])
-            return JsonResponse(
-                {
-                    "status": "error",
-                    "message": f"Outreach {outreach_id} approved but send failed.",
-                    "error": send_result.get("error", "unknown_error"),
-                },
-                status=502,
-            )
+        # Send email in background thread
+        thread = threading.Thread(target=send_email_async, daemon=True)
+        thread.start()
 
-        return JsonResponse({"status": "success", "message": f"Outreach {outreach_id} approved."})
+        return JsonResponse({
+            "status": "success", 
+            "message": f"Outreach {outreach_id} approved. Email being sent...",
+            "email_to": outreach.contact.contact_email
+        })
 
     return JsonResponse({"error": "Only POST allowed"}, status=405)
 
@@ -278,3 +324,103 @@ def send_grouped_company_outreach_view(request):
     result = send_grouped_company_outreach()
     status_code = 200 if result.get("status") == "success" else 500
     return JsonResponse(result, status=status_code)
+
+
+@csrf_exempt
+def bulk_approve_company_view(request, company_id):
+    """
+    POST: Approve and send ALL drafted emails for a specific company.
+    Body can contain:
+    {
+      "email_service_url": "http://localhost:8001"  (optional)
+    }
+    """
+    if request.method != 'POST':
+        return JsonResponse({"error": "Only POST allowed"}, status=405)
+
+    try:
+        company = Company.objects.get(id=company_id)
+    except Company.DoesNotExist:
+        return JsonResponse({"error": "Company not found"}, status=404)
+
+    try:
+        data = json.loads(request.body) if request.body else {}
+    except json.JSONDecodeError:
+        data = {}
+
+    email_service_url = data.get("email_service_url", "http://localhost:8001")
+
+    # Get all drafted emails for this company
+    drafts = Outreach.objects.filter(
+        company_id=company_id,
+        status='drafted'
+    ).select_related('contact')
+
+    if not drafts.exists():
+        return JsonResponse({
+            "status": "info",
+            "message": f"No drafted emails for {company.company_name}",
+            "sent": 0,
+            "failed": 0
+        })
+
+    def send_bulk_async():
+        sent = 0
+        failed = 0
+        errors = []
+
+        for outreach in drafts:
+            # Approve the outreach
+            outreach.status = 'approved'
+            outreach.approved_at = timezone.now()
+            outreach.save()
+
+            # Send email
+            try:
+                response = requests.post(
+                    f"{email_service_url}/api/send-email",
+                    json={
+                        "to_email": outreach.contact.contact_email,
+                        "subject": outreach.edited_subject or outreach.email_subject,
+                        "body": outreach.edited_body or outreach.email_body,
+                        "contact_name": outreach.contact.contact_name,
+                        "company_name": outreach.company.company_name,
+                    },
+                    timeout=10
+                )
+
+                if response.status_code in [200, 202]:
+                    outreach.status = 'sent'
+                    outreach.sent_at = timezone.now()
+                    outreach.save(update_fields=["status", "sent_at", "updated_at"])
+                    sent += 1
+                    print(f"✓ Email sent to {outreach.contact.contact_email}")
+                else:
+                    outreach.status = 'approved'
+                    outreach.save(update_fields=["status", "updated_at"])
+                    failed += 1
+                    errors.append({
+                        "email": outreach.contact.contact_email,
+                        "error": f"HTTP {response.status_code}"
+                    })
+                    print(f"⚠ Email send failed: {response.status_code}")
+            except Exception as e:
+                outreach.status = 'approved'
+                outreach.save(update_fields=["status", "updated_at"])
+                failed += 1
+                errors.append({
+                    "email": outreach.contact.contact_email,
+                    "error": str(e)
+                })
+                print(f"❌ Error sending to {outreach.contact.contact_email}: {str(e)}")
+
+    # Send in background thread
+    thread = threading.Thread(target=send_bulk_async, daemon=True)
+    thread.start()
+
+    return JsonResponse({
+        "status": "success",
+        "message": f"Bulk sending {len(list(drafts))} emails for {company.company_name}...",
+        "company_id": company_id,
+        "company_name": company.company_name
+    }, status=202)

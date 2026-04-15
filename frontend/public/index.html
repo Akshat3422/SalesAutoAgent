@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SalesAuto - Lead Research & Outreach</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="navbar-brand">
+                <h1>🚀 SalesAuto</h1>
+                <p>AI-Powered Lead Research & Outreach</p>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="#research" class="nav-link active" data-tab="research">Research</a></li>
+                <li><a href="#dashboard" class="nav-link" data-tab="dashboard">Dashboard</a></li>
+                <li><a href="#approvals" class="nav-link" data-tab="approvals">Approvals</a></li>
+                <li><a href="#email" class="nav-link" data-tab="email">Email</a></li>
+            </ul>
+            <div id="connection-status" class="status-indicator disconnected">Offline</div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <main class="container">
+        <!-- Research Tab -->
+        <section id="research" class="tab-content active">
+            <div class="card">
+                <div class="card-header">
+                    <h2>🔍 Lead Research</h2>
+                    <p>Trigger AI-powered research pipeline</p>
+                </div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label for="keyword">Search Keyword</label>
+                        <div class="input-group">
+                            <input 
+                                type="text" 
+                                id="keyword" 
+                                placeholder="e.g., EdTech India AI, Enterprise SaaS"
+                                value="EdTech India AI"
+                                class="input-field"
+                            >
+                            <button id="trigger-btn" class="btn btn-primary" onclick="triggerPipeline()">
+                                <span class="spinner hidden" id="spinner"></span>
+                                Trigger Research
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="pipeline-status" class="status-panel hidden">
+                        <h3>Pipeline Status</h3>
+                        <div class="status-info">
+                            <div class="status-item">
+                                <span class="label">State:</span>
+                                <span id="status-state" class="value">Idle</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="label">Keyword:</span>
+                                <span id="status-keyword" class="value">-</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="label">Started:</span>
+                                <span id="status-started" class="value">-</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="label">Finished:</span>
+                                <span id="status-finished" class="value">-</span>
+                            </div>
+                        </div>
+                        <div id="status-error" class="error-box hidden"></div>
+                    </div>
+
+                    <div id="research-logs" class="logs-container">
+                        <h3>Activity Logs</h3>
+                        <div id="logs" class="logs-list"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dashboard Tab -->
+        <section id="dashboard" class="tab-content">
+            <div class="grid-container">
+                <!-- Metrics -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>📊 Metrics</h2>
+                    </div>
+                    <div class="card-body metrics-grid">
+                        <div class="metric">
+                            <div class="metric-value" id="metric-leads">0</div>
+                            <div class="metric-label">Leads Discovered</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value" id="metric-crawled">0</div>
+                            <div class="metric-label">Sites Crawled</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value" id="metric-sent">0</div>
+                            <div class="metric-label">Emails Sent</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value" id="metric-replies">0</div>
+                            <div class="metric-label">Replies</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Companies -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>🏢 Top Companies</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Company</th>
+                                        <th>Domain</th>
+                                        <th>Score</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="companies-table">
+                                    <tr><td colspan="4" class="text-center text-muted">No companies yet</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Approvals Tab -->
+        <section id="approvals" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h2>✉️ Email Approvals</h2>
+                    <p>Review and approve outreach emails</p>
+                </div>
+                <div class="card-body">
+                    <div id="approvals-list" class="approvals-container">
+                        <p class="text-muted">No pending approvals</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Email Tab -->
+        <section id="email" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h2>📧 Send Email</h2>
+                    <p>Send test emails via Email Microservice</p>
+                </div>
+                <div class="card-body">
+                    <form id="email-form" class="form-vertical">
+                        <div class="form-group">
+                            <label for="email-to">To Email</label>
+                            <input type="email" id="email-to" class="input-field" placeholder="recipient@example.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="email-subject">Subject</label>
+                            <input type="text" id="email-subject" class="input-field" placeholder="Email subject" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="email-body">Body</label>
+                            <textarea id="email-body" class="input-field textarea" placeholder="Email body" rows="6" required></textarea>
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="sendTestEmail()">Send Email</button>
+                    </form>
+                    <div id="email-response" class="response-box hidden"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>SalesAuto Frontend &copy; 2026 | <a href="/api/config">API Config</a> | <a href="/api/info">Info</a></p>
+        </div>
+    </footer>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>

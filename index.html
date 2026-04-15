@@ -1178,26 +1178,47 @@ async function runCrawlAll() {
 let pollingInterval = null;
 function pollPipelineStatus() {
   if(pollingInterval) clearInterval(pollingInterval);
+  
+  let pollCount = 0;
+  const maxPolls = 360; // Max 30 minutes of polling (5s * 360)
+  
   pollingInterval = setInterval(async () => {
+    pollCount++;
+    
+    // Safety timeout: stop polling after 30 minutes
+    if(pollCount > maxPolls) {
+      clearInterval(pollingInterval);
+      addLog('a1-log', '[TIMEOUT] Polling stopped after 30 minutes (backend may be stuck).', 'log-warn');
+      return;
+    }
+    
     try {
       const res = await fetch(`${API_BASE}/agent/status/`);
       if(res.ok) {
         const status = await res.json();
         if(status.is_running === false) {
           clearInterval(pollingInterval);
-          addLog('a1-log', '[DON] Pipeline marked as finished by backend.', 'log-ok');
+          addLog('a1-log', '[DONE] Pipeline completed successfully.', 'log-ok');
           fetchStats();
           fetchCompanies();
           fetchApprovals();
           fetchOutreach();
         } else {
-          addLog('a1-log', `[SYNC] Pipeline active...`, 'log-dim');
-          fetchStats();
-          fetchCompanies();
+          // Only log every 3rd poll to reduce noise (every ~15 seconds)
+          if(pollCount % 3 === 0) {
+            addLog('a1-log', `[RUNNING] Pipeline still active... (poll ${pollCount})`, 'log-dim');
+          }
+          // Only fetch stats every 3rd poll to reduce server load
+          if(pollCount % 3 === 0) {
+            fetchStats();
+            fetchCompanies();
+          }
         }
       }
-    } catch(e) {}
-  }, 5000); // Check every 5s
+    } catch(e) {
+      addLog('a1-log', '[ERR] Failed to fetch status: ' + e.message, 'log-err');
+    }
+  }, 5000); // Check every 5s (but only update UI/DB every 15s)
 }
 
 // ─────────────────────────────────────────────

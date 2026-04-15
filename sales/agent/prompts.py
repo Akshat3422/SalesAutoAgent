@@ -60,25 +60,53 @@ Our services include:
 - document / invoice / operations automation
 - custom AI integrations for their product
 
-## Important scoring logic
-- `ai_maturity_score`:
-  0 means little or no visible AI adoption
-  100 means AI-native company with strong in-house AI capability
-- `service_fit_score`:
-  0 means poor fit for our services
-  100 means very strong fit because their workflows, customers, or product would benefit from our AI work
-- `buying_intent_score`:
-  0 means little visible need
-  100 means obvious pain points, manual processes, or expansion opportunities
-- `ai_score` is the final outbound priority score from 0 to 100.
-  It should be highest when they are a strong services fit and have clear AI opportunities.
-  A company already using some AI should NOT automatically get a low final score if we can still build meaningful AI systems for them.
+## CRITICAL SCORING RULES - READ CAREFULLY
 
-Use this weighting:
-- final ai_score should roughly reflect:
-  45% service_fit_score
-  35% buying_intent_score
-  20% inverse of ai_maturity_score
+### ai_maturity_score (0-100): How AI-advanced they are
+- 0-10: No visible AI adoption at all
+- 20-30: Mentions AI features but limited integration
+- 40-50: Uses some AI tools (ChatGPT, commercial tools) but not core to business
+- 60-75: AI is important part of their offering but not AI-native
+- 85-100: AI-native company, builds their own AI, AI is core competency
+
+### service_fit_score (0-100): How well our services fit
+- 0-15: They are a competitor or AI consultancy (DON'T CONTACT)
+- 15-25: Very weak fit, likely don't need what we offer
+- 25-40: Weak fit but possible opportunities
+- 40-60: Moderate fit, they could benefit from some services
+- 60-80: Strong fit, clear use cases for our services
+- 85-100: Excellent fit, obvious pain points we solve
+
+### buying_intent_score (0-100): Likelihood they want to buy
+- 0-10: No visible pain points or manual processes
+- 20-30: Some hints of manual work or inefficiency
+- 40-50: Clear evidence of manual processes that could be automated
+- 60-75: Multiple pain points, likely active budget for solutions
+- 85-100: Desperate need for automation, clear budget signals
+
+### ai_score Calculation
+Don't try to calculate - just report the three scores accurately.
+Server will apply: ai_score = (service_fit * 0.45) + (buying_intent * 0.35) + ((100 - maturity) * 0.20)
+
+## EXAMPLES
+
+### Example 1: E-commerce store
+- ai_maturity: 20 (uses Shopify AI features, minimal custom AI)
+- service_fit: 65 (needs personalization, dynamic pricing, support automation)
+- buying_intent: 55 (manual marketing, but hiring shows budget)
+- Result: (65*0.45) + (55*0.35) + (80*0.20) = 60
+
+### Example 2: AI consulting firm (SKIP)
+- ai_maturity: 85 (builds AI solutions)
+- service_fit: 5 (competitor, don't contact)
+- buying_intent: 30 (not our customer)
+- Result: Skip this company!
+
+### Example 3: Manual-heavy logistics company
+- ai_maturity: 5 (no AI at all)
+- service_fit: 75 (tons of workflow automation needs)
+- buying_intent: 80 (clear pain, looking for solutions)
+- Result: (75*0.45) + (80*0.35) + (95*0.20) = 84
 
 ## What to extract
 - what products or platform they appear to offer
@@ -87,16 +115,17 @@ Use this weighting:
 
 ## Hard rules
 - Never hallucinate facts not present in the input
-- If evidence is weak, lower confidence and keep values conservative
+- If evidence is weak, LOWER the score (not higher!)
 - Mention concrete evidence in reasoning
-- If they look like a direct AI services vendor, AI consultancy, or obvious competitor, reduce service_fit_score sharply
+- If they look like a competitor (AI services, AI tools, AI consulting) → set service_fit_score to 5-15 max
+- Medium confidence should be default, high only if strong evidence
 
 ## Output — STRICT JSON ONLY
 {{
-  "ai_score": integer,
-  "ai_maturity_score": integer,
-  "service_fit_score": integer,
-  "buying_intent_score": integer,
+  "ai_maturity_score": integer 0-100,
+  "service_fit_score": integer 0-100,
+  "buying_intent_score": integer 0-100,
+  "ai_score": integer 0-100,
   "industry": "string",
   "company_products": ["string"],
   "current_ai_usage": ["string"],
