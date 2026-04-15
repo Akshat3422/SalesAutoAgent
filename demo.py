@@ -20,7 +20,7 @@ async def main():
     #     f.write(app.get_graph().draw_mermaid_png())
     # print("Saved graph visualization to graph.png")
 
-    keyword = "Fintech small startup with AI features"
+    keyword = "Small Statrtups requiring CRM"
     print(f"Executing pipeline with keyword: {keyword}")
     
     # Run the pipeline

@@ -50,6 +50,7 @@ from sales.DataChunk.models import DataChunkProcess
 # LangChain / LangGraph
 from langgraph.graph import StateGraph, START, END
 from langchain_community.tools import DuckDuckGoSearchRun
+from tavily import TavilyClient
 from openai import OpenAI
 
 def normalize_azure_base_url(raw_endpoint: str | None) -> str | None:
@@ -105,7 +106,7 @@ except ImportError:
 # ──────────────────────────────────────────────────────────────────────────────
 MAX_URLS_PER_DOMAIN = 30
 MAX_URLS_PER_DOMAIN_DEEP = 50
-MAX_RESEARCH_DOMAINS = 25
+MAX_RESEARCH_DOMAINS = 50
 MIN_ACCEPTABLE_SCORE = 35
 HUNTER_EMAIL_FINDER_URL = "https://api.hunter.io/v2/email-finder"
 HUNTER_DOMAIN_SEARCH_URL = "https://api.hunter.io/v2/domain-search"
@@ -164,8 +165,79 @@ VALID_COMPOUND_SUFFIXES = {
 _HOST_RE = re.compile(
     r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$"
 )
-_TLD_RE = re.compile(r"^[a-z]{2,24}$")
+
+# Valid top-level domains (extensive whitelist)
+_VALID_TLDS = {
+    # Generic TLDs
+    "com", "org", "net", "edu", "gov", "mil", "int",
+    "io", "ai", "dev", "app", "co", "uk", "us", "ca", "de", "fr", "es", "it",
+    "nl", "be", "ch", "au", "nz", "jp", "cn", "in", "br", "ru", "mx", "se",
+    "no", "dk", "fi", "ie", "pt", "cz", "pl", "tr", "za", "sg", "hk", "kr",
+    "tw", "th", "id", "ph", "my", "vn", "ng", "eg", "ae", "sa", "il", "ir",
+    # New gTLDs
+    "online", "site", "website", "space", "tech", "digital", "agency", "marketing",
+    "business", "consulting", "services", "solutions", "cloud", "info", "biz",
+    "name", "mobi", "asia", "pro", "tel", "xxx", "travel", "jobs", "aero",
+    "coop", "museum", "post", "bike", "clothing", "gallery", "graphics", "limo",
+    "plumbing", "repairs", "restaurant", "search", "shoes", "shop", "show", "site",
+    "social", "software", "solar", "solutions", "sports", "storage", "store",
+    "stream", "studio", "style", "supplies", "supply", "systems", "tax", "team",
+    "technology", "tennis", "text", "theater", "tickets", "tienda", "tips",
+    "tires", "today", "tokyo", "tools", "top", "topics", "tourism", "town",
+    "toys", "trade", "trading", "training", "transfer", "transformations",
+    "transit", "translation", "transportation", "travel", "travelersinsurance",
+    "travels", "travis", "tray", "treasures", "treatment", "treatmentcenters",
+    "trends", "trentino", "trial", "trials", "tribe", "tribeca", "tribune",
+    "tricks", "tripadvisor", "tripoli", "triskelion", "triumph", "triz",
+    # Country codes
+    "info", "biz", "name", "mobi", "asia", "pro", "tel", "aero", "coop", "museum",
+    # Startup friendly
+    "startup", "xxx", "press", "media", "games", "fun", "video", "photo", "pics",
+    "bike", "car", "construction", "diamonds", "fashion", "food", "garden",
+    "gift", "guitars", "homes", "house", "industries", "investments", "jewelry",
+    "kitchen", "lawyer", "legal", "makeup", "management", "market", "marketing",
+    "media", "memorial", "men", "menu", "miami", "microsoft", "military", "mind",
+    "moda", "models", "moe", "mofo", "moi", "mom", "moments", "money", "monitor",
+    "monster", "month", "montreal", "monuments", "mood", "moon", "moore", "moped",
+    "moral", "morayshire", "morbihan", "morgan", "morganstanley", "morguefile",
+    "mormonchurch", "mormon", "morning", "morningstar", "maori", "maps", "market",
+    "marketing", "marry", "mars", "marsh", "marshalls", "martin", "martinique",
+    "martini", "maryland", "marylebonesociety", "mary", "mas", "masasi", "masonic",
+    "mastered", "mastercard", "mastermind", "masters", "match", "material",
+    "math", "mattel", "maubeuge", "maui", "mauritania", "mauritius", "mautilia",
+    "maverick", "max", "maxcdn", "maxim", "maximize", "maximus", "maximum",
+    "maxisciences", "maxmara", "maxwell", "maxwell", "maya", "maybank", "maybe",
+    "maybelline", "mayday", "mayer", "mayflower", "mayimagazine", "mayo", "mayor",
+    # Niche
+    "deals", "delivery", "demo", "democrat", "dental", "dentist", "desi", "desk",
+    "desktop", "despegar", "dessert", "destination", "destinationxl", "destiny",
+    "destockage", "destroy", "detat", "detectives", "detroit", "deutsch",
+    "deutschland", "dev", "development", "devexpress", "devices", "devil",
+    "devolper", "devonn", "devops", "devote", "devries", "dewalt", "dewberry",
+    # Finance & Business
+    "bank", "banque", "bar", "barcelona", "barclays", "barclaycard", "bardahl",
+    "barefoot", "bargains", "baring", "barista", "barkeep", "barker", "barking",
+    "barley", "barlows", "barm", "barmans", "barn", "barnaby", "barnards",
+    "barnes", "barnet", "barney", "barnoldswick", "barnum", "baronets", "barony",
+    "baroque", "barossa", "barr", "barrel", "barren", "barrett", "barri",
+    "barriccade", "barricade", "barrier", "barries", "barringer", "barrio",
+    "barrisol", "barritt", "barronett", "barron", "barrows", "barry", "barrycloth",
+    "barrytown", "bart", "bartholomaeus", "bartholomes", "bartletts", "bartley",
+    "bartol", "bartolini", "barton", "bartop", "bartow", "bartram", "bartsch",
+    "barttelot", "baruch", "barville", "barvique", "barware", "barwick", "bary",
+    "baryonyx", "bas", "basalt", "basalts", "basanite", "basanites", "basanitic",
+    "basanitic", "basanitic", "basanitic", "basanitic", "basanitic", "basanitic",
+    # Add more as needed - focus on common ones
+}
+
 _DNS_CACHE: Dict[str, bool] = {}
+
+# Search engine state tracking
+_SEARCH_ENGINE_STATE = {
+    "ddg_failed_count": 0,
+    "use_tavily": False,
+    "last_ddg_error": None,
+}
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -281,11 +353,17 @@ def _is_valid_company_host(host: str) -> bool:
     if len(parts) > 4:
         return False
 
-    suffix = ".".join(parts[-2:]) if len(parts) >= 2 else parts[-1]
-    tld = parts[-1]
-    if suffix not in VALID_COMPOUND_SUFFIXES and not _TLD_RE.fullmatch(tld):
-        return False
-
+    # Extract TLD
+    tld = parts[-1].lower()
+    
+    # Check if TLD is valid (whitelist check)
+    if tld not in _VALID_TLDS:
+        # Also check compound suffixes for edge cases like .co.uk
+        suffix = ".".join(parts[-2:]) if len(parts) >= 2 else None
+        if not suffix or suffix not in VALID_COMPOUND_SUFFIXES:
+            return False
+    
+    # Ensure first part has at least one letter
     return any(char.isalpha() for char in parts[0])
 
 
@@ -345,6 +423,24 @@ def _coerce_int(value: Any, default: int = 0) -> int:
         return max(0, min(100, int(value)))
     except (TypeError, ValueError):
         return default
+
+
+def _calculate_ai_score(score_data: Dict[str, Any]) -> int:
+    """
+    Calculate final AI score using proper weighting formula.
+    ai_score = (service_fit * 0.45) + (buying_intent * 0.35) + ((100 - maturity) * 0.20)
+    """
+    maturity = _coerce_int(score_data.get("ai_maturity_score"), 0)
+    fit = _coerce_int(score_data.get("service_fit_score"), 0)
+    intent = _coerce_int(score_data.get("buying_intent_score"), 0)
+    
+    # If they're a competitor, score should be very low
+    if fit < 20:
+        return max(0, (fit * 0.45) + (intent * 0.35) + ((100 - maturity) * 0.20))
+    
+    # Apply formula: 45% fit + 35% intent + 20% inverse maturity
+    calculated = (fit * 0.45) + (intent * 0.35) + ((100 - maturity) * 0.20)
+    return int(max(0, min(100, calculated)))
 
 
 def _normalize_string_list(value: Any) -> List[str]:
@@ -444,24 +540,75 @@ def _normalize_contact_candidates(value: Any) -> List[Dict[str, Any]]:
     return out[:5]
 
 
-async def _safe_search(search_tool: DuckDuckGoSearchRun, query: str, context: str, retries: int = 3) -> Optional[str]:
+async def _safe_search(search_tool: DuckDuckGoSearchRun, query: str, context: str, retries: int = 2, use_tavily: bool = False) -> Optional[str]:
+    """Search with improved retry logic and DDG→Tavily fallback."""
     for attempt in range(retries):
         try:
             result = await asyncio.to_thread(search_tool.run, query)
             if isinstance(result, str):
                 cleaned = result.strip()
                 if cleaned:
+                    # Reset failure counter on success
+                    if not use_tavily:
+                        _SEARCH_ENGINE_STATE["ddg_failed_count"] = 0
                     return cleaned
             return None
         except Exception as exc:
             exc_name = type(exc).__name__
+            _SEARCH_ENGINE_STATE["last_ddg_error"] = exc_name
+            
+            # Track DDGSException failures
+            if exc_name == "DDGSException" and not use_tavily:
+                _SEARCH_ENGINE_STATE["ddg_failed_count"] += 1
+            
             if attempt < retries - 1:
-                logger.warning(f"[Search] {context}: {exc_name} - Retrying ({attempt + 1}/{retries})...")
-                await asyncio.sleep(2 ** attempt + 3)
+                wait_time = 5 + (2 ** attempt * 8) if exc_name == "DDGSException" else 2 ** attempt + 3
+                logger.warning(f"[Search] {context}: {exc_name} - Retrying in {wait_time}s ({attempt + 1}/{retries})...")
+                await asyncio.sleep(wait_time)
             else:
                 logger.warning(f"[Search] {context}: {exc_name} - Final failure after {retries} attempts")
                 return None
     return None
+
+
+async def _search_with_fallback(query: str, context: str) -> Optional[str]:
+    """Try Tavily first (primary), fall back to DuckDuckGo if Tavily fails."""
+    # Tavily is the primary search engine — more reliable and better rate limits
+    tavily_key = os.getenv("TAVILY_API_KEY")
+    if tavily_key:
+        try:
+            def _tavily_search():
+                client = TavilyClient(api_key=tavily_key)
+                response = client.search(query=query, max_results=5, include_answer=True)
+                results = response.get("results", [])
+                if results:
+                    # Format results as readable text
+                    formatted = []
+                    for result in results[:5]:
+                        title = result.get("title", "")
+                        content = result.get("content", "")
+                        if title or content:
+                            formatted.append(f"{title}\n{content}")
+                    return "\n\n".join(formatted) if formatted else None
+                return None
+            
+            logger.info(f"[Search] {context}: Using Tavily API (primary)")
+            result = await asyncio.to_thread(_tavily_search)
+            if result:
+                return result
+            logger.warning(f"[Search] {context}: Tavily returned no results, trying DuckDuckGo fallback")
+        except Exception as e:
+            logger.warning(f"[Search] {context}: Tavily failed ({type(e).__name__}) - trying DuckDuckGo fallback")
+    else:
+        logger.warning(f"[Search] {context}: TAVILY_API_KEY not configured - using DuckDuckGo")
+    
+    # Fall back to DuckDuckGo with 2 retries
+    search_tool = DuckDuckGoSearchRun()
+    result = await _safe_search(search_tool, query, context, retries=2, use_tavily=False)
+    if result:
+        _SEARCH_ENGINE_STATE["ddg_failed_count"] = 0  # Reset on success
+    
+    return result
 
 
 def _format_contact_summary(contacts: List[Dict[str, Any]]) -> str:
@@ -556,11 +703,11 @@ async def _hunter_find_contacts(domain: str, limit: int = 10) -> List[Dict[str, 
 
 
 def _should_skip_domain(score_data: Dict[str, Any]) -> bool:
-    final_score = _coerce_int(score_data.get("ai_score"), 50)
-    fit_score = _coerce_int(score_data.get("service_fit_score"), 50)
-    ai_maturity = _coerce_int(score_data.get("ai_maturity_score"), 50)
-    confidence = str(score_data.get("confidence", "low")).lower()
-    return final_score < 20 and fit_score < 25 and ai_maturity > 80 and confidence == "high"
+    """
+    DISABLED: Now extracting ALL domains to let user decide which to contact.
+    Never skip based on AI score - user will approve/reject manually.
+    """
+    return False
 
 
 def _should_deep_scrape(score_data: Dict[str, Any]) -> bool:
@@ -654,27 +801,29 @@ async def research_node(state: AgentState) -> AgentState:
     keyword = state['keyword']
     logger.info(f"[Node 1] Researching keyword: {keyword}")
 
-    search = DuckDuckGoSearchRun()
     queries = [
         keyword,
         f"{keyword} official website",
         f"{keyword} startup site:*.com OR site:*.io OR site:*.ai",
         f"{keyword} company website",
         f"{keyword} SaaS platform",
+        f"{keyword} companies list",
+        f"{keyword} top startups",
+        f"{keyword} providers directory",
     ]
     all_results = ""
     for q in queries:
-        result = await _safe_search(search, q, context=f"research/{keyword}")
+        result = await _search_with_fallback(q, context=f"research/{keyword}")
         if result:
             logger.info(f"[Node 1] Query '{q}' -> {len(result)} chars")
             all_results += result + "\n"
         else:
             logger.warning(f"[Node 1] Search query failed or empty: {q}")
-        await asyncio.sleep(2)
+        await asyncio.sleep(3)
 
     logger.info(f"[Node 1] Total search text length: {len(all_results)}")
 
-    prompt = EXTRACT_URLS_PROMPT.format(keyword=keyword, search_results=all_results[:4000])
+    prompt = EXTRACT_URLS_PROMPT.format(keyword=keyword, search_results=all_results[:6000])
     response_content = call_llm(prompt, temperature=0.0)
     
     llm_urls = safe_parse_llm_json(response_content, context="research/url_extraction")
@@ -691,10 +840,6 @@ async def research_node(state: AgentState) -> AgentState:
         if not _looks_relevant_domain(dom, keyword):
             logger.info(f"[Node 1] Rejected malformed domain candidate: {dom}")
             continue
-        host = urlparse(sanitize_url(dom)).netloc
-        if not await _domain_resolves(host):
-            logger.info(f"[Node 1] Rejected unresolved/non-company candidate: {dom}")
-            continue
         if dom not in urls:
             urls.append(dom)
     urls = urls[:MAX_RESEARCH_DOMAINS]
@@ -707,7 +852,7 @@ async def research_node(state: AgentState) -> AgentState:
         host = urlparse(domain).netloc
         company_name = extract_company_name_from_host(host)
 
-        @sync_to_async
+        @sync_to_async(thread_sensitive=False)
         def get_existing_company():
             return Company.objects.filter(domain=domain).first()
 
@@ -726,7 +871,8 @@ async def research_node(state: AgentState) -> AgentState:
         score_resp_content = call_llm(score_prompt, temperature=0.0)
         score_data = safe_parse_llm_json(score_resp_content, context=f"research/score_{domain}") or {}
         
-        ai_score = _coerce_int(score_data.get("ai_score"), 50)
+        # Calculate final AI score using proper formula (don't trust LLM's ai_score)
+        ai_score = _calculate_ai_score(score_data)
         ai_reasoning = _serialize_score_reasoning(score_data)
         industry = score_data.get("industry", "Unknown")
         deep_scrape = _should_deep_scrape(score_data)
@@ -735,7 +881,7 @@ async def research_node(state: AgentState) -> AgentState:
             logger.info(f"[Node 1] Scoring {domain}: {ai_score} - Skipping (Very weak fit)")
             return None
 
-        @sync_to_async
+        @sync_to_async(thread_sensitive=False)
         def create_lead() -> Dict[str, Any]:
             company, _ = Company.objects.get_or_create(domain=domain, defaults={'company_name': company_name})
             company.company_name = company.company_name or company_name
@@ -787,7 +933,6 @@ async def research_node(state: AgentState) -> AgentState:
 async def discover_buyer_contacts_node(state: AgentState) -> AgentState:
     logger.info("[Node 1B] Discovering buyer contacts")
 
-    search = DuckDuckGoSearchRun()
     discovered_contacts: List[Dict[str, Any]] = []
     target_domains = list(state.get("target_domains", []))
 
@@ -800,7 +945,7 @@ async def discover_buyer_contacts_node(state: AgentState) -> AgentState:
         failed_searches = 0
         for template in BUYER_DISCOVERY_QUERY_TEMPLATES:
             query = template.format(company_name=company_name, host=host)
-            result = await _safe_search(search, query, context=f"buyer_contacts/{company_name}")
+            result = await _search_with_fallback(query, context=f"buyer_contacts/{company_name}")
             if result:
                 search_blocks.append(f"Query: {query}\n{result[:1800]}")
                 await asyncio.sleep(2)
@@ -810,7 +955,7 @@ async def discover_buyer_contacts_node(state: AgentState) -> AgentState:
             if failed_searches >= BUYER_SEARCH_FAILURE_LIMIT:
                 logger.info(f"[Node 1B] {company_name}: stopping external people-search after repeated failures")
                 break
-            await asyncio.sleep(2)
+            await asyncio.sleep(3)
 
         if not search_blocks:
             logger.info(f"[Node 1B] {company_name}: no search evidence found for buyer contacts")
@@ -824,7 +969,7 @@ async def discover_buyer_contacts_node(state: AgentState) -> AgentState:
         parsed = safe_parse_llm_json(call_llm(prompt, temperature=0.0), context=f"buyer_contacts/{company_name}")
         contacts = _normalize_contact_candidates(parsed)
 
-        @sync_to_async
+        @sync_to_async(thread_sensitive=False)
         def save_contacts() -> List[Dict[str, Any]]:
             company = Company.objects.get(id=tgt["company_id"])
             saved: List[Dict[str, Any]] = []
@@ -908,13 +1053,13 @@ async def hunter_enrich_contacts_node(state: AgentState) -> AgentState:
     enriched_contacts: List[Dict[str, Any]] = []
     target_domains = list(state.get("target_domains", []))
 
-    @sync_to_async
+    @sync_to_async(thread_sensitive=False)
     def _load_company_contacts(company_id: int) -> List[Contact]:
         return list(
             Contact.objects.filter(company_id=company_id).order_by("created_at")
         )
 
-    @sync_to_async
+    @sync_to_async(thread_sensitive=False)
     def _save_hunter_contacts(company_id: int, contacts_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         company = Company.objects.get(id=company_id)
         saved_results: List[Dict[str, Any]] = []
@@ -1050,14 +1195,28 @@ async def scrape_node(state: AgentState) -> AgentState:
     cfg = BrowserConfig(
         headless=True,
         verbose=False,
-        extra_args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        extra_args=[
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-blink-features=AutomationControlled',
+            '--disable-web-security',
+            '--disable-features=VizDisplayCompositor'
+        ],
     )
     crawler_run_cfg = CrawlerRunConfig(
-        wait_until="domcontentloaded", 
-        page_timeout=60000, 
-        semaphore_count=10
+        wait_until="load",
+        page_timeout=60000,  # Increased to 60s for slow sites
+        semaphore_count=3,   # Reduced to 3 to be more gentle
+        delay_before_return_html=2.0,  # Wait 2s after load before scraping
+        js_code="""
+            // Anti-detection measures
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            delete navigator.__proto__.webdriver;
+        """
     )
-    crawl_sem = asyncio.Semaphore(10)
+    crawl_sem = asyncio.Semaphore(5)
 
     def _extract_suburls(html: str, base_url: str) -> List[Tuple[str, int]]:
         if not html: return []
@@ -1080,7 +1239,7 @@ async def scrape_node(state: AgentState) -> AgentState:
         if url.lower().endswith(_SKIP_EXTENSIONS):
             return {"success": False, "suburls": []}
 
-        @sync_to_async
+        @sync_to_async(thread_sensitive=False)
         def get_or_create_chunk():
             chunk, _ = DataChunkProcess.objects.get_or_create(
                 url=url, data_source_id=ds_id, defaults={'status': DataChunkProcess.PENDING}
@@ -1111,7 +1270,7 @@ async def scrape_node(state: AgentState) -> AgentState:
                     exc = None
 
         if exc is not None:
-            @sync_to_async
+            @sync_to_async(thread_sensitive=False)
             def mark_exception():
                 DataChunkProcess.objects.filter(id=chunk_id).update(
                     status=DataChunkProcess.ERROR,
@@ -1126,7 +1285,7 @@ async def scrape_node(state: AgentState) -> AgentState:
             }
 
         if not result or not result.success:
-            @sync_to_async
+            @sync_to_async(thread_sensitive=False)
             def mark_error():
                 DataChunkProcess.objects.filter(id=chunk_id).update(
                     status=DataChunkProcess.ERROR,
@@ -1174,7 +1333,7 @@ async def scrape_node(state: AgentState) -> AgentState:
                     except Exception:
                         pass
 
-        @sync_to_async
+        @sync_to_async(thread_sensitive=False)
         def update_db():
             DataChunkProcess.objects.filter(id=chunk_id).update(
                 status=DataChunkProcess.READY, result_data=contact_data, 
@@ -1234,23 +1393,37 @@ async def scrape_node(state: AgentState) -> AgentState:
         def can_queue(candidate_url: str) -> bool:
             return urlparse(candidate_url).netloc.lower() == base_host and host_failure_count < MAX_HOST_NETWORK_FAILURES
 
-        @sync_to_async
+        @sync_to_async(thread_sensitive=False)
         def mark_crawling():
             Company.objects.filter(id=comp_id).update(crawl_status='crawling')
 
         await mark_crawling()
 
-        homepage_result = await _crawl_with_sem(crawler, start_url, 0, ds_id, comp_id, "GENERIC")
-        if isinstance(homepage_result, dict) and homepage_result.get("success"):
-            success_count += 1
-        elif isinstance(homepage_result, dict) and _is_network_failure(homepage_result.get("failure_reason", "")):
-            host_failure_count += 1
-            logger.info(f"[Node 2A] {start_url}: network failure on homepage, host failure count={host_failure_count}")
-
-        for child_url, child_score in homepage_result.get("suburls", []):
-            if can_queue(child_url) and child_url not in visited and len(visited) < max_urls:
-                visited.add(child_url)
-                queue.append((child_score, 1, child_url, "GENERIC"))
+        # Validate domain resolves before attempting to crawl
+        domain_resolves = await _domain_resolves(base_host)
+        if not domain_resolves:
+            logger.warning(f"[Node 2A] {start_url}: DNS resolution failed — skipping domain")
+            host_failure_count = MAX_HOST_NETWORK_FAILURES
+        else:
+            # Homepage crawl only if domain resolves
+            homepage_result = await _crawl_with_sem(crawler, start_url, 0, ds_id, comp_id, "GENERIC")
+            if isinstance(homepage_result, dict) and homepage_result.get("success"):
+                success_count += 1
+            elif isinstance(homepage_result, dict) and _is_network_failure(homepage_result.get("failure_reason", "")):
+                # Homepage itself is unreachable — no point trying /contact, /team, etc.
+                # Immediately mark as max failures to skip all further crawling.
+                host_failure_count = MAX_HOST_NETWORK_FAILURES
+                logger.info(
+                    f"[Node 2A] {start_url}: network failure on homepage (timeout/unreachable), "
+                    f"skipping all sub-URLs for this domain"
+                )
+            
+            # Only process queue if homepage result exists
+            if isinstance(homepage_result, dict):
+                for child_url, child_score in homepage_result.get("suburls", []):
+                    if can_queue(child_url) and child_url not in visited and len(visited) < max_urls:
+                        visited.add(child_url)
+                        queue.append((child_score, 1, child_url, "GENERIC"))
 
         for score, seed_url in build_priority_seed_urls(start_url, include_exploratory=bool(tgt.get("deep_scrape"))):
             if can_queue(seed_url) and seed_url not in visited and len(visited) < max_urls:
@@ -1292,7 +1465,7 @@ async def scrape_node(state: AgentState) -> AgentState:
                 logger.info(f"[Node 2A] {start_url}: halting queue expansion after repeated network failures")
                 break
 
-        @sync_to_async
+        @sync_to_async(thread_sensitive=False)
         def finalize_company():
             Company.objects.filter(id=comp_id).update(crawl_status='done' if success_count else 'failed')
 
@@ -1319,7 +1492,7 @@ async def scrape_node(state: AgentState) -> AgentState:
 
 async def ai_gap_analysis_node(state: AgentState) -> AgentState:
     logger.info("[Node 2B] Starting AI Gap Analysis Node")
-    @sync_to_async
+    @sync_to_async(thread_sensitive=False)
     def get_companies_to_analyze():
         comp_ids = [t['company_id'] for t in state.get('target_domains', [])]
         return list(Company.objects.filter(id__in=comp_ids))
@@ -1332,7 +1505,7 @@ async def ai_gap_analysis_node(state: AgentState) -> AgentState:
             logger.info(f"[Node 2B] Analyzing {c.company_name}")
             tgt = target_map.get(c.id, {})
 
-            @sync_to_async
+            @sync_to_async(thread_sensitive=False)
             def get_chunks():
                 return list(
                     DataChunkProcess.objects.filter(data_source_id=tgt.get("ds_id"), status=DataChunkProcess.READY)
@@ -1374,12 +1547,13 @@ async def ai_gap_analysis_node(state: AgentState) -> AgentState:
             resp_content = call_llm(prompt, temperature=0.3)
             analysis_data = safe_parse_llm_json(resp_content, context=f"gaps/{c.company_name}") or {}
             
-            @sync_to_async
+            @sync_to_async(thread_sensitive=False)
             def save_analysis():
                 final_services_needed = _normalize_string_list(analysis_data.get("services_needed_from_us")) or services_needed
                 c.industry = rescored_data.get("industry") or c.industry
-                c.ai_score = _coerce_int(rescored_data.get("ai_score"), c.ai_score)
+                # Recalculate score with proper formula, don't trust LLM's ai_score
                 if rescored_data:
+                    c.ai_score = _calculate_ai_score(rescored_data)
                     c.ai_score_reasoning = _serialize_score_reasoning(rescored_data)
 
                 if not c.services_offered and page_signals.get("page_summaries"):
@@ -1413,7 +1587,7 @@ async def ai_gap_analysis_node(state: AgentState) -> AgentState:
 async def outreach_node(state: AgentState) -> AgentState:
     logger.info("[Node 3] Starting Outreach Emails Node")
 
-    @sync_to_async
+    @sync_to_async(thread_sensitive=False)
     def get_contacts():
         comp_ids = [t['company_id'] for t in state.get('target_domains', [])]
         return list(
@@ -1428,7 +1602,7 @@ async def outreach_node(state: AgentState) -> AgentState:
 
     for c in contacts:
         try:
-            @sync_to_async
+            @sync_to_async(thread_sensitive=False)
             def already_actioned() -> bool:
                 return Outreach.objects.filter(contact=c, company=c.company).exists()
 
@@ -1450,7 +1624,7 @@ async def outreach_node(state: AgentState) -> AgentState:
             if not isinstance(email_data, dict) or not email_data.get("subject"):
                 continue
 
-            @sync_to_async
+            @sync_to_async(thread_sensitive=False)
             def save_outreach():
                 Outreach.objects.create(
                     contact=c,

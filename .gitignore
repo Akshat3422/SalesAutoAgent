@@ -17,3 +17,5 @@ research.ipynb
 research.ipynb
 hunter_check.py
 agent_execution.log
+
+__pycache__
