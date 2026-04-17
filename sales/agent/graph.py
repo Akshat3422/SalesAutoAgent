@@ -19,7 +19,7 @@ from asgiref.sync import sync_to_async
 logger = logging.getLogger("agent_pipeline")
 logger.setLevel(logging.INFO)
 
-_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 # File handler — always UTF-8
 _fh = logging.FileHandler(
@@ -31,8 +31,11 @@ logger.addHandler(_fh)
 
 # Console handler — wrap stdout in utf-8 writer so Windows cp1252 never errors
 _ch = logging.StreamHandler(
-    stream=open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1)
-    if hasattr(sys.stdout, 'fileno') else sys.stdout
+    stream=(
+        open(sys.stdout.fileno(), mode="w", encoding="utf-8", buffering=1)
+        if hasattr(sys.stdout, "fileno")
+        else sys.stdout
+    )
 )
 _ch.setFormatter(_formatter)
 logger.addHandler(_ch)
@@ -53,6 +56,7 @@ from langchain_community.tools import DuckDuckGoSearchRun
 from tavily import TavilyClient
 from openai import OpenAI
 
+
 def normalize_azure_base_url(raw_endpoint: str | None) -> str | None:
     if not raw_endpoint:
         return raw_endpoint
@@ -67,35 +71,39 @@ def normalize_azure_base_url(raw_endpoint: str | None) -> str | None:
 
     return f"{cleaned}/openai/v1/"
 
+
 def call_llm(prompt: str, temperature: float = 0.0) -> str:
     endpoint = normalize_azure_base_url(os.getenv("AZURE_OPENAI_ENDPOINT"))
     api_key = os.getenv("AZURE_OPENAI_API_KEY")
     deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
-    
+
     client = OpenAI(
         api_key=api_key,
         base_url=endpoint,
     )
-    
+
     response = client.chat.completions.create(
         model=deployment,
         temperature=temperature,
-        messages=[{"role": "user", "content": prompt}]
+        messages=[{"role": "user", "content": prompt}],
     )
     return response.choices[0].message.content
 
+
 from sales.agent.prompts import (
-    EXTRACT_URLS_PROMPT, 
-    EXTRACT_CONTACTS_PROMPT, 
+    EXTRACT_URLS_PROMPT,
+    EXTRACT_CONTACTS_PROMPT,
     DRAFT_EMAIL_PROMPT,
     AI_SCORE_PROMPT,
     AI_GAP_ANALYSIS_PROMPT,
     DISCOVER_BUYER_CONTACTS_PROMPT,
 )
+from sales.agent.email_sender import send_email_payload
 
 # Web Crawler
 try:
     from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, BrowserConfig
+
     CRAWLER_AVAILABLE = True
 except ImportError:
     CRAWLER_AVAILABLE = False
@@ -113,36 +121,98 @@ HUNTER_DOMAIN_SEARCH_URL = "https://api.hunter.io/v2/domain-search"
 HUNTER_TIMEOUT_SECONDS = 20
 MAX_HOST_NETWORK_FAILURES = 2
 HUNTER_DECISION_KEYWORDS = (
-    "ceo", "founder", "co-founder", "coo", "cto", "cmo", "cro",
-    "vp", "vice president", "head", "director", "chief",
+    "ceo",
+    "founder",
+    "co-founder",
+    "coo",
+    "cto",
+    "cmo",
+    "cro",
+    "vp",
+    "vice president",
+    "head",
+    "director",
+    "chief",
 )
 
 # Priority slug tables  (score, slug)
 CORE_PRIORITY_SLUGS: List[Tuple[int, str]] = [
-    (3, "contact"), (3, "contact-us"), (3, "contactus"), (3, "get-in-touch"), (3, "reach-us"),
-    (3, "team"), (3, "our-team"), (3, "the-team"), (3, "people"), (3, "staff"), (3, "leadership"),
-    (3, "founders"), (3, "meet-the-team"), (3, "executives"),
-    (2, "about"), (2, "about-us"), (2, "aboutus"), (2, "company"), (2, "our-story"),
-    (2, "who-we-are"), (2, "mission"), (2, "vision"),
-    (1, "products"), (1, "product"), (1, "services"), (1, "service"), (1, "solutions"),
-    (1, "platform"), (1, "features"), (1, "pricing"), (1, "how-it-works"),
+    (3, "contact"),
+    (3, "contact-us"),
+    (3, "contactus"),
+    (3, "get-in-touch"),
+    (3, "reach-us"),
+    (3, "team"),
+    (3, "our-team"),
+    (3, "the-team"),
+    (3, "people"),
+    (3, "staff"),
+    (3, "leadership"),
+    (3, "founders"),
+    (3, "meet-the-team"),
+    (3, "executives"),
+    (2, "about"),
+    (2, "about-us"),
+    (2, "aboutus"),
+    (2, "company"),
+    (2, "our-story"),
+    (2, "who-we-are"),
+    (2, "mission"),
+    (2, "vision"),
+    (1, "products"),
+    (1, "product"),
+    (1, "services"),
+    (1, "service"),
+    (1, "solutions"),
+    (1, "platform"),
+    (1, "features"),
+    (1, "pricing"),
+    (1, "how-it-works"),
 ]
 EXPLORATORY_PRIORITY_SLUGS: List[Tuple[int, str]] = [
     (1, "careers"),
-    (1, "customers"), (1, "case-studies"), (1, "use-cases"), (1, "resources"),
-    (1, "integrations"), (1, "automation"), (1, "artificial-intelligence"), (1, "ai"),
-    (1, "blog"), (1, "faq"),
+    (1, "customers"),
+    (1, "case-studies"),
+    (1, "use-cases"),
+    (1, "resources"),
+    (1, "integrations"),
+    (1, "automation"),
+    (1, "artificial-intelligence"),
+    (1, "ai"),
+    (1, "blog"),
+    (1, "faq"),
 ]
 
 _SKIP_EXTENSIONS = (
-    '.pdf', '.doc', '.docx', '.xls', '.xlsx',
-    '.ppt', '.pptx', '.zip', '.rar',
-    '.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp',
-    '.mp4', '.mp3', '.avi', '.mov',
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".ppt",
+    ".pptx",
+    ".zip",
+    ".rar",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".svg",
+    ".webp",
+    ".mp4",
+    ".mp3",
+    ".avi",
+    ".mov",
 )
 
 BUSINESS_EMAIL_PREFIXES = (
-    "info@", "hello@", "sales@", "contact@", "support@", "business@", "partnerships@"
+    "info@",
+    "hello@",
+    "sales@",
+    "contact@",
+    "support@",
+    "business@",
+    "partnerships@",
 )
 BUYER_ROLE_QUERIES = (
     "vp sales",
@@ -153,14 +223,21 @@ BUYER_ROLE_QUERIES = (
     "founder",
 )
 BUYER_DISCOVERY_QUERY_TEMPLATES = (
-    '{company_name} leadership team executives site:{host}',
+    "{company_name} leadership team executives site:{host}",
     '{company_name} vp sales OR "head of sales" OR "head of growth" OR "head of marketing" site:linkedin.com',
-    '{company_name} ceo OR founder OR managing director site:{host}',
+    "{company_name} ceo OR founder OR managing director site:{host}",
 )
 BUYER_SEARCH_FAILURE_LIMIT = 2
 
 VALID_COMPOUND_SUFFIXES = {
-    "ac.in", "co.in", "co.uk", "com.au", "com.sg", "net.in", "org.in", "org.uk",
+    "ac.in",
+    "co.in",
+    "co.uk",
+    "com.au",
+    "com.sg",
+    "net.in",
+    "org.in",
+    "org.uk",
 }
 _HOST_RE = re.compile(
     r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$"
@@ -169,64 +246,406 @@ _HOST_RE = re.compile(
 # Valid top-level domains (extensive whitelist)
 _VALID_TLDS = {
     # Generic TLDs
-    "com", "org", "net", "edu", "gov", "mil", "int",
-    "io", "ai", "dev", "app", "co", "uk", "us", "ca", "de", "fr", "es", "it",
-    "nl", "be", "ch", "au", "nz", "jp", "cn", "in", "br", "ru", "mx", "se",
-    "no", "dk", "fi", "ie", "pt", "cz", "pl", "tr", "za", "sg", "hk", "kr",
-    "tw", "th", "id", "ph", "my", "vn", "ng", "eg", "ae", "sa", "il", "ir",
+    "com",
+    "org",
+    "net",
+    "edu",
+    "gov",
+    "mil",
+    "int",
+    "io",
+    "ai",
+    "dev",
+    "app",
+    "co",
+    "uk",
+    "us",
+    "ca",
+    "de",
+    "fr",
+    "es",
+    "it",
+    "nl",
+    "be",
+    "ch",
+    "au",
+    "nz",
+    "jp",
+    "cn",
+    "in",
+    "br",
+    "ru",
+    "mx",
+    "se",
+    "no",
+    "dk",
+    "fi",
+    "ie",
+    "pt",
+    "cz",
+    "pl",
+    "tr",
+    "za",
+    "sg",
+    "hk",
+    "kr",
+    "tw",
+    "th",
+    "id",
+    "ph",
+    "my",
+    "vn",
+    "ng",
+    "eg",
+    "ae",
+    "sa",
+    "il",
+    "ir",
     # New gTLDs
-    "online", "site", "website", "space", "tech", "digital", "agency", "marketing",
-    "business", "consulting", "services", "solutions", "cloud", "info", "biz",
-    "name", "mobi", "asia", "pro", "tel", "xxx", "travel", "jobs", "aero",
-    "coop", "museum", "post", "bike", "clothing", "gallery", "graphics", "limo",
-    "plumbing", "repairs", "restaurant", "search", "shoes", "shop", "show", "site",
-    "social", "software", "solar", "solutions", "sports", "storage", "store",
-    "stream", "studio", "style", "supplies", "supply", "systems", "tax", "team",
-    "technology", "tennis", "text", "theater", "tickets", "tienda", "tips",
-    "tires", "today", "tokyo", "tools", "top", "topics", "tourism", "town",
-    "toys", "trade", "trading", "training", "transfer", "transformations",
-    "transit", "translation", "transportation", "travel", "travelersinsurance",
-    "travels", "travis", "tray", "treasures", "treatment", "treatmentcenters",
-    "trends", "trentino", "trial", "trials", "tribe", "tribeca", "tribune",
-    "tricks", "tripadvisor", "tripoli", "triskelion", "triumph", "triz",
+    "online",
+    "site",
+    "website",
+    "space",
+    "tech",
+    "digital",
+    "agency",
+    "marketing",
+    "business",
+    "consulting",
+    "services",
+    "solutions",
+    "cloud",
+    "info",
+    "biz",
+    "name",
+    "mobi",
+    "asia",
+    "pro",
+    "tel",
+    "xxx",
+    "travel",
+    "jobs",
+    "aero",
+    "coop",
+    "museum",
+    "post",
+    "bike",
+    "clothing",
+    "gallery",
+    "graphics",
+    "limo",
+    "plumbing",
+    "repairs",
+    "restaurant",
+    "search",
+    "shoes",
+    "shop",
+    "show",
+    "site",
+    "social",
+    "software",
+    "solar",
+    "solutions",
+    "sports",
+    "storage",
+    "store",
+    "stream",
+    "studio",
+    "style",
+    "supplies",
+    "supply",
+    "systems",
+    "tax",
+    "team",
+    "technology",
+    "tennis",
+    "text",
+    "theater",
+    "tickets",
+    "tienda",
+    "tips",
+    "tires",
+    "today",
+    "tokyo",
+    "tools",
+    "top",
+    "topics",
+    "tourism",
+    "town",
+    "toys",
+    "trade",
+    "trading",
+    "training",
+    "transfer",
+    "transformations",
+    "transit",
+    "translation",
+    "transportation",
+    "travel",
+    "travelersinsurance",
+    "travels",
+    "travis",
+    "tray",
+    "treasures",
+    "treatment",
+    "treatmentcenters",
+    "trends",
+    "trentino",
+    "trial",
+    "trials",
+    "tribe",
+    "tribeca",
+    "tribune",
+    "tricks",
+    "tripadvisor",
+    "tripoli",
+    "triskelion",
+    "triumph",
+    "triz",
     # Country codes
-    "info", "biz", "name", "mobi", "asia", "pro", "tel", "aero", "coop", "museum",
+    "info",
+    "biz",
+    "name",
+    "mobi",
+    "asia",
+    "pro",
+    "tel",
+    "aero",
+    "coop",
+    "museum",
     # Startup friendly
-    "startup", "xxx", "press", "media", "games", "fun", "video", "photo", "pics",
-    "bike", "car", "construction", "diamonds", "fashion", "food", "garden",
-    "gift", "guitars", "homes", "house", "industries", "investments", "jewelry",
-    "kitchen", "lawyer", "legal", "makeup", "management", "market", "marketing",
-    "media", "memorial", "men", "menu", "miami", "microsoft", "military", "mind",
-    "moda", "models", "moe", "mofo", "moi", "mom", "moments", "money", "monitor",
-    "monster", "month", "montreal", "monuments", "mood", "moon", "moore", "moped",
-    "moral", "morayshire", "morbihan", "morgan", "morganstanley", "morguefile",
-    "mormonchurch", "mormon", "morning", "morningstar", "maori", "maps", "market",
-    "marketing", "marry", "mars", "marsh", "marshalls", "martin", "martinique",
-    "martini", "maryland", "marylebonesociety", "mary", "mas", "masasi", "masonic",
-    "mastered", "mastercard", "mastermind", "masters", "match", "material",
-    "math", "mattel", "maubeuge", "maui", "mauritania", "mauritius", "mautilia",
-    "maverick", "max", "maxcdn", "maxim", "maximize", "maximus", "maximum",
-    "maxisciences", "maxmara", "maxwell", "maxwell", "maya", "maybank", "maybe",
-    "maybelline", "mayday", "mayer", "mayflower", "mayimagazine", "mayo", "mayor",
+    "startup",
+    "xxx",
+    "press",
+    "media",
+    "games",
+    "fun",
+    "video",
+    "photo",
+    "pics",
+    "bike",
+    "car",
+    "construction",
+    "diamonds",
+    "fashion",
+    "food",
+    "garden",
+    "gift",
+    "guitars",
+    "homes",
+    "house",
+    "industries",
+    "investments",
+    "jewelry",
+    "kitchen",
+    "lawyer",
+    "legal",
+    "makeup",
+    "management",
+    "market",
+    "marketing",
+    "media",
+    "memorial",
+    "men",
+    "menu",
+    "miami",
+    "microsoft",
+    "military",
+    "mind",
+    "moda",
+    "models",
+    "moe",
+    "mofo",
+    "moi",
+    "mom",
+    "moments",
+    "money",
+    "monitor",
+    "monster",
+    "month",
+    "montreal",
+    "monuments",
+    "mood",
+    "moon",
+    "moore",
+    "moped",
+    "moral",
+    "morayshire",
+    "morbihan",
+    "morgan",
+    "morganstanley",
+    "morguefile",
+    "mormonchurch",
+    "mormon",
+    "morning",
+    "morningstar",
+    "maori",
+    "maps",
+    "market",
+    "marketing",
+    "marry",
+    "mars",
+    "marsh",
+    "marshalls",
+    "martin",
+    "martinique",
+    "martini",
+    "maryland",
+    "marylebonesociety",
+    "mary",
+    "mas",
+    "masasi",
+    "masonic",
+    "mastered",
+    "mastercard",
+    "mastermind",
+    "masters",
+    "match",
+    "material",
+    "math",
+    "mattel",
+    "maubeuge",
+    "maui",
+    "mauritania",
+    "mauritius",
+    "mautilia",
+    "maverick",
+    "max",
+    "maxcdn",
+    "maxim",
+    "maximize",
+    "maximus",
+    "maximum",
+    "maxisciences",
+    "maxmara",
+    "maxwell",
+    "maxwell",
+    "maya",
+    "maybank",
+    "maybe",
+    "maybelline",
+    "mayday",
+    "mayer",
+    "mayflower",
+    "mayimagazine",
+    "mayo",
+    "mayor",
     # Niche
-    "deals", "delivery", "demo", "democrat", "dental", "dentist", "desi", "desk",
-    "desktop", "despegar", "dessert", "destination", "destinationxl", "destiny",
-    "destockage", "destroy", "detat", "detectives", "detroit", "deutsch",
-    "deutschland", "dev", "development", "devexpress", "devices", "devil",
-    "devolper", "devonn", "devops", "devote", "devries", "dewalt", "dewberry",
+    "deals",
+    "delivery",
+    "demo",
+    "democrat",
+    "dental",
+    "dentist",
+    "desi",
+    "desk",
+    "desktop",
+    "despegar",
+    "dessert",
+    "destination",
+    "destinationxl",
+    "destiny",
+    "destockage",
+    "destroy",
+    "detat",
+    "detectives",
+    "detroit",
+    "deutsch",
+    "deutschland",
+    "dev",
+    "development",
+    "devexpress",
+    "devices",
+    "devil",
+    "devolper",
+    "devonn",
+    "devops",
+    "devote",
+    "devries",
+    "dewalt",
+    "dewberry",
     # Finance & Business
-    "bank", "banque", "bar", "barcelona", "barclays", "barclaycard", "bardahl",
-    "barefoot", "bargains", "baring", "barista", "barkeep", "barker", "barking",
-    "barley", "barlows", "barm", "barmans", "barn", "barnaby", "barnards",
-    "barnes", "barnet", "barney", "barnoldswick", "barnum", "baronets", "barony",
-    "baroque", "barossa", "barr", "barrel", "barren", "barrett", "barri",
-    "barriccade", "barricade", "barrier", "barries", "barringer", "barrio",
-    "barrisol", "barritt", "barronett", "barron", "barrows", "barry", "barrycloth",
-    "barrytown", "bart", "bartholomaeus", "bartholomes", "bartletts", "bartley",
-    "bartol", "bartolini", "barton", "bartop", "bartow", "bartram", "bartsch",
-    "barttelot", "baruch", "barville", "barvique", "barware", "barwick", "bary",
-    "baryonyx", "bas", "basalt", "basalts", "basanite", "basanites", "basanitic",
-    "basanitic", "basanitic", "basanitic", "basanitic", "basanitic", "basanitic",
+    "bank",
+    "banque",
+    "bar",
+    "barcelona",
+    "barclays",
+    "barclaycard",
+    "bardahl",
+    "barefoot",
+    "bargains",
+    "baring",
+    "barista",
+    "barkeep",
+    "barker",
+    "barking",
+    "barley",
+    "barlows",
+    "barm",
+    "barmans",
+    "barn",
+    "barnaby",
+    "barnards",
+    "barnes",
+    "barnet",
+    "barney",
+    "barnoldswick",
+    "barnum",
+    "baronets",
+    "barony",
+    "baroque",
+    "barossa",
+    "barr",
+    "barrel",
+    "barren",
+    "barrett",
+    "barri",
+    "barriccade",
+    "barricade",
+    "barrier",
+    "barries",
+    "barringer",
+    "barrio",
+    "barrisol",
+    "barritt",
+    "barronett",
+    "barron",
+    "barrows",
+    "barry",
+    "barrycloth",
+    "barrytown",
+    "bart",
+    "bartholomaeus",
+    "bartholomes",
+    "bartletts",
+    "bartley",
+    "bartol",
+    "bartolini",
+    "barton",
+    "bartop",
+    "bartow",
+    "bartram",
+    "bartsch",
+    "barttelot",
+    "baruch",
+    "barville",
+    "barvique",
+    "barware",
+    "barwick",
+    "bary",
+    "baryonyx",
+    "bas",
+    "basalt",
+    "basalts",
+    "basanite",
+    "basanites",
+    "basanitic",
+    "basanitic",
+    "basanitic",
+    "basanitic",
+    "basanitic",
+    "basanitic",
+    "basanitic",
     # Add more as needed - focus on common ones
 }
 
@@ -243,6 +662,7 @@ _SEARCH_ENGINE_STATE = {
 # Helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def sanitize_url(url: str) -> str:
     url = url.strip()
     if not url.startswith(("http://", "https://")):
@@ -257,14 +677,14 @@ def sanitize_url(url: str) -> str:
         path="",
         params="",
         query="",
-        fragment=""
+        fragment="",
     )
     return urlunparse(clean)
 
 
 def extract_company_name_from_host(host: str) -> str:
-    parts = host.lower().split('.')
-    if parts[0] == 'www' and len(parts) > 1:
+    parts = host.lower().split(".")
+    if parts[0] == "www" and len(parts) > 1:
         return parts[1].capitalize()
     return parts[0].capitalize()
 
@@ -292,22 +712,24 @@ def safe_parse_llm_json(raw: str, context: str = "") -> Optional[Any]:
     except json.JSONDecodeError:
         pass
 
-    for start_char, end_char in [('{', '}'), ('[', ']')]:
+    for start_char, end_char in [("{", "}"), ("[", "]")]:
         start = text.find(start_char)
-        end   = text.rfind(end_char)
+        end = text.rfind(end_char)
         if start != -1 and end != -1 and end > start:
             try:
-                return json.loads(text[start:end + 1])
+                return json.loads(text[start : end + 1])
             except json.JSONDecodeError:
                 pass
 
-    logger.warning(f"[JSON] Could not parse LLM output — context={context} preview={repr(raw[:120])}")
+    logger.warning(
+        f"[JSON] Could not parse LLM output — context={context} preview={repr(raw[:120])}"
+    )
     return None
 
 
 def url_priority_score(url: str) -> int:
-    path = urlparse(url).path.lower().strip('/')
-    segments = re.split(r'[-_/]', path)
+    path = urlparse(url).path.lower().strip("/")
+    segments = re.split(r"[-_/]", path)
     best = -1
     for score, slug in CORE_PRIORITY_SLUGS + EXPLORATORY_PRIORITY_SLUGS:
         if slug in segments or slug == path:
@@ -315,9 +737,11 @@ def url_priority_score(url: str) -> int:
     return best
 
 
-def build_priority_seed_urls(base_url: str, include_exploratory: bool = False) -> List[Tuple[int, str]]:
+def build_priority_seed_urls(
+    base_url: str, include_exploratory: bool = False
+) -> List[Tuple[int, str]]:
     parsed = urlparse(base_url)
-    base   = f"{parsed.scheme}://{parsed.netloc}"
+    base = f"{parsed.scheme}://{parsed.netloc}"
     seen: set = set()
     out: List[Tuple[int, str]] = []
     slug_groups = list(CORE_PRIORITY_SLUGS)
@@ -355,14 +779,14 @@ def _is_valid_company_host(host: str) -> bool:
 
     # Extract TLD
     tld = parts[-1].lower()
-    
+
     # Check if TLD is valid (whitelist check)
     if tld not in _VALID_TLDS:
         # Also check compound suffixes for edge cases like .co.uk
         suffix = ".".join(parts[-2:]) if len(parts) >= 2 else None
         if not suffix or suffix not in VALID_COMPOUND_SUFFIXES:
             return False
-    
+
     # Ensure first part has at least one letter
     return any(char.isalpha() for char in parts[0])
 
@@ -433,11 +857,11 @@ def _calculate_ai_score(score_data: Dict[str, Any]) -> int:
     maturity = _coerce_int(score_data.get("ai_maturity_score"), 0)
     fit = _coerce_int(score_data.get("service_fit_score"), 0)
     intent = _coerce_int(score_data.get("buying_intent_score"), 0)
-    
+
     # If they're a competitor, score should be very low
     if fit < 20:
         return max(0, (fit * 0.45) + (intent * 0.35) + ((100 - maturity) * 0.20))
-    
+
     # Apply formula: 45% fit + 35% intent + 20% inverse maturity
     calculated = (fit * 0.45) + (intent * 0.35) + ((100 - maturity) * 0.20)
     return int(max(0, min(100, calculated)))
@@ -475,18 +899,43 @@ def _format_signal_block(label: str, values: List[str]) -> str:
     return f"{label}: " + "; ".join(values[:8])
 
 
-def _build_score_context(keyword: str, domain: str, context: str, company: Optional[Company] = None, page_signals: Optional[Dict[str, List[str]]] = None) -> str:
-    chunks = [f"Keyword: {keyword}", f"Domain: {domain}", f"Research context: {context[:2000]}"]
+def _build_score_context(
+    keyword: str,
+    domain: str,
+    context: str,
+    company: Optional[Company] = None,
+    page_signals: Optional[Dict[str, List[str]]] = None,
+) -> str:
+    chunks = [
+        f"Keyword: {keyword}",
+        f"Domain: {domain}",
+        f"Research context: {context[:2000]}",
+    ]
 
     if company:
         chunks.append(f"Industry: {company.industry or 'unknown'}")
         chunks.append(f"Services offered: {company.services_offered or 'unknown'}")
 
     if page_signals:
-        chunks.append(_format_signal_block("Products", page_signals.get("company_products", [])))
-        chunks.append(_format_signal_block("Current AI usage", page_signals.get("current_ai_usage", [])))
-        chunks.append(_format_signal_block("Services needed from us", page_signals.get("services_needed_from_us", [])))
-        chunks.append(_format_signal_block("Page summaries", page_signals.get("page_summaries", [])))
+        chunks.append(
+            _format_signal_block("Products", page_signals.get("company_products", []))
+        )
+        chunks.append(
+            _format_signal_block(
+                "Current AI usage", page_signals.get("current_ai_usage", [])
+            )
+        )
+        chunks.append(
+            _format_signal_block(
+                "Services needed from us",
+                page_signals.get("services_needed_from_us", []),
+            )
+        )
+        chunks.append(
+            _format_signal_block(
+                "Page summaries", page_signals.get("page_summaries", [])
+            )
+        )
 
     return "\n".join(chunks)
 
@@ -495,9 +944,18 @@ def _serialize_score_reasoning(score_data: Dict[str, Any]) -> str:
     maturity = _coerce_int(score_data.get("ai_maturity_score"), 0)
     fit = _coerce_int(score_data.get("service_fit_score"), 0)
     intent = _coerce_int(score_data.get("buying_intent_score"), 0)
-    products = ", ".join(_normalize_string_list(score_data.get("company_products"))) or "not clear"
-    current_ai = ", ".join(_normalize_string_list(score_data.get("current_ai_usage"))) or "not clear"
-    needed = ", ".join(_normalize_string_list(score_data.get("services_needed_from_us"))) or "not clear"
+    products = (
+        ", ".join(_normalize_string_list(score_data.get("company_products")))
+        or "not clear"
+    )
+    current_ai = (
+        ", ".join(_normalize_string_list(score_data.get("current_ai_usage")))
+        or "not clear"
+    )
+    needed = (
+        ", ".join(_normalize_string_list(score_data.get("services_needed_from_us")))
+        or "not clear"
+    )
     reasoning = score_data.get("ai_score_reasoning", "No reasoning available")
     return (
         f"{reasoning}\n"
@@ -530,17 +988,35 @@ def _normalize_contact_candidates(value: Any) -> List[Dict[str, Any]]:
         if key in seen:
             continue
         seen.add(key)
-        out.append({
-            "contact_name": contact_name[:255],
-            "contact_role": contact_role[:255],
-            "linkedin_url": linkedin_url if linkedin_url and linkedin_url.startswith(("http://", "https://")) else None,
-            "source_page": source_page if source_page and source_page.startswith(("http://", "https://")) else None,
-            "confidence": confidence if confidence in {"high", "medium", "low"} else "medium",
-        })
+        out.append(
+            {
+                "contact_name": contact_name[:255],
+                "contact_role": contact_role[:255],
+                "linkedin_url": (
+                    linkedin_url
+                    if linkedin_url and linkedin_url.startswith(("http://", "https://"))
+                    else None
+                ),
+                "source_page": (
+                    source_page
+                    if source_page and source_page.startswith(("http://", "https://"))
+                    else None
+                ),
+                "confidence": (
+                    confidence if confidence in {"high", "medium", "low"} else "medium"
+                ),
+            }
+        )
     return out[:5]
 
 
-async def _safe_search(search_tool: DuckDuckGoSearchRun, query: str, context: str, retries: int = 2, use_tavily: bool = False) -> Optional[str]:
+async def _safe_search(
+    search_tool: DuckDuckGoSearchRun,
+    query: str,
+    context: str,
+    retries: int = 2,
+    use_tavily: bool = False,
+) -> Optional[str]:
     """Search with improved retry logic and DDG→Tavily fallback."""
     for attempt in range(retries):
         try:
@@ -556,17 +1032,25 @@ async def _safe_search(search_tool: DuckDuckGoSearchRun, query: str, context: st
         except Exception as exc:
             exc_name = type(exc).__name__
             _SEARCH_ENGINE_STATE["last_ddg_error"] = exc_name
-            
+
             # Track DDGSException failures
             if exc_name == "DDGSException" and not use_tavily:
                 _SEARCH_ENGINE_STATE["ddg_failed_count"] += 1
-            
+
             if attempt < retries - 1:
-                wait_time = 5 + (2 ** attempt * 8) if exc_name == "DDGSException" else 2 ** attempt + 3
-                logger.warning(f"[Search] {context}: {exc_name} - Retrying in {wait_time}s ({attempt + 1}/{retries})...")
+                wait_time = (
+                    5 + (2**attempt * 8)
+                    if exc_name == "DDGSException"
+                    else 2**attempt + 3
+                )
+                logger.warning(
+                    f"[Search] {context}: {exc_name} - Retrying in {wait_time}s ({attempt + 1}/{retries})..."
+                )
                 await asyncio.sleep(wait_time)
             else:
-                logger.warning(f"[Search] {context}: {exc_name} - Final failure after {retries} attempts")
+                logger.warning(
+                    f"[Search] {context}: {exc_name} - Final failure after {retries} attempts"
+                )
                 return None
     return None
 
@@ -577,9 +1061,12 @@ async def _search_with_fallback(query: str, context: str) -> Optional[str]:
     tavily_key = os.getenv("TAVILY_API_KEY")
     if tavily_key:
         try:
+
             def _tavily_search():
                 client = TavilyClient(api_key=tavily_key)
-                response = client.search(query=query, max_results=5, include_answer=True)
+                response = client.search(
+                    query=query, max_results=5, include_answer=True
+                )
                 results = response.get("results", [])
                 if results:
                     # Format results as readable text
@@ -591,23 +1078,31 @@ async def _search_with_fallback(query: str, context: str) -> Optional[str]:
                             formatted.append(f"{title}\n{content}")
                     return "\n\n".join(formatted) if formatted else None
                 return None
-            
+
             logger.info(f"[Search] {context}: Using Tavily API (primary)")
             result = await asyncio.to_thread(_tavily_search)
             if result:
                 return result
-            logger.warning(f"[Search] {context}: Tavily returned no results, trying DuckDuckGo fallback")
+            logger.warning(
+                f"[Search] {context}: Tavily returned no results, trying DuckDuckGo fallback"
+            )
         except Exception as e:
-            logger.warning(f"[Search] {context}: Tavily failed ({type(e).__name__}) - trying DuckDuckGo fallback")
+            logger.warning(
+                f"[Search] {context}: Tavily failed ({type(e).__name__}) - trying DuckDuckGo fallback"
+            )
     else:
-        logger.warning(f"[Search] {context}: TAVILY_API_KEY not configured - using DuckDuckGo")
-    
+        logger.warning(
+            f"[Search] {context}: TAVILY_API_KEY not configured - using DuckDuckGo"
+        )
+
     # Fall back to DuckDuckGo with 2 retries
     search_tool = DuckDuckGoSearchRun()
-    result = await _safe_search(search_tool, query, context, retries=2, use_tavily=False)
+    result = await _safe_search(
+        search_tool, query, context, retries=2, use_tavily=False
+    )
     if result:
         _SEARCH_ENGINE_STATE["ddg_failed_count"] = 0  # Reset on success
-    
+
     return result
 
 
@@ -661,7 +1156,9 @@ async def _hunter_find_contacts(domain: str, limit: int = 10) -> List[Dict[str, 
             response.raise_for_status()
             payload = response.json()
         except requests.RequestException as exc:
-            logger.warning(f"[Hunter] Domain search failed for {domain}: {type(exc).__name__}")
+            logger.warning(
+                f"[Hunter] Domain search failed for {domain}: {type(exc).__name__}"
+            )
             return []
         except ValueError:
             logger.warning(f"[Hunter] Invalid JSON for domain search {domain}")
@@ -689,14 +1186,16 @@ async def _hunter_find_contacts(domain: str, limit: int = 10) -> List[Dict[str, 
             if key in seen:
                 continue
             seen.add(key)
-            found.append({
-                "contact_name": full_name[:255],
-                "contact_role": position[:255] or "Unknown",
-                "contact_email": email,
-                "hunter_score": person.get("score"),
-                "hunter_confidence": person.get("confidence"),
-                "source_page": None,
-            })
+            found.append(
+                {
+                    "contact_name": full_name[:255],
+                    "contact_role": position[:255] or "Unknown",
+                    "contact_email": email,
+                    "hunter_score": person.get("score"),
+                    "hunter_confidence": person.get("confidence"),
+                    "source_page": None,
+                }
+            )
         return found[:5]
 
     return await asyncio.to_thread(_request)
@@ -727,7 +1226,9 @@ def _collect_page_signals(chunks: List[DataChunkProcess]) -> Dict[str, List[str]
         payload = chunk.result_data or {}
         products.extend(_normalize_string_list(payload.get("company_products")))
         current_ai.extend(_normalize_string_list(payload.get("ai_signals")))
-        services_needed.extend(_normalize_string_list(payload.get("services_needed_from_us")))
+        services_needed.extend(
+            _normalize_string_list(payload.get("services_needed_from_us"))
+        )
         page_summaries.extend(_normalize_string_list(payload.get("page_summary")))
 
     return {
@@ -742,13 +1243,20 @@ def _collect_page_signals(chunks: List[DataChunkProcess]) -> Dict[str, List[str]
 # Graph State
 # ──────────────────────────────────────────────────────────────────────────────
 
-class AgentState(TypedDict):
+
+class AgentState(TypedDict,total=False):
     keyword: str
     target_domains: List[Dict[str, Any]]
     scraped_urls: List[str]
     emails: List[str]
     companies: List[Dict[str, str]]
     buyer_contacts: List[Dict[str, Any]]
+    approval_requests: int
+    send_personalized_emails: bool
+    company_id: Optional[int]          # for personalized flow
+    bulk_sent: int
+    personalized_sent: int
+
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -756,32 +1264,58 @@ class AgentState(TypedDict):
 # ──────────────────────────────────────────────────────────────────────────────
 
 _EXCLUDED_DOMAINS = {
-    "linkedin.com", "crunchbase.com", "indeed.com", "glassdoor.com",
-    "g2.com", "angellist.com", "facebook.com", "twitter.com", "x.com",
-    "instagram.com", "youtube.com", "reddit.com", "quora.com",
+    "linkedin.com",
+    "crunchbase.com",
+    "indeed.com",
+    "glassdoor.com",
+    "g2.com",
+    "angellist.com",
+    "facebook.com",
+    "twitter.com",
+    "x.com",
+    "instagram.com",
+    "youtube.com",
+    "reddit.com",
+    "quora.com",
     "gmail.com",
-    "forbes.com", "techcrunch.com", "businessinsider.com", "inc.com",
-    "medium.com", "substack.com", "wikipedia.org", "wikidata.org",
-    "ycombinator.com", "producthunt.com", "capterra.com", "getapp.com",
-    "trustpilot.com", "clutch.co", "startupblink.com", "f6s.com",
-    "venturebeat.com", "wired.com", "zdnet.com", "cnet.com",
+    "forbes.com",
+    "techcrunch.com",
+    "businessinsider.com",
+    "inc.com",
+    "medium.com",
+    "substack.com",
+    "wikipedia.org",
+    "wikidata.org",
+    "ycombinator.com",
+    "producthunt.com",
+    "capterra.com",
+    "getapp.com",
+    "trustpilot.com",
+    "clutch.co",
+    "startupblink.com",
+    "f6s.com",
+    "venturebeat.com",
+    "wired.com",
+    "zdnet.com",
+    "cnet.com",
 }
 
 _DOMAIN_RE = re.compile(
-    r'(?:https?://)?(?:www\.)?'
-    r'([a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?'
-    r'(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*'
-    r'\.[a-zA-Z]{2,})'
+    r"(?:https?://)?(?:www\.)?"
+    r"([a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?"
+    r"(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*"
+    r"\.[a-zA-Z]{2,})"
 )
+
 
 def _regex_extract_domains(text: str) -> List[str]:
     found = []
     for match in _DOMAIN_RE.finditer(text):
         domain = match.group(1).lower()
-        parts = domain.split('.')
+        parts = domain.split(".")
         if len(parts) < 2 or len(parts[-1]) < 2:
             continue
-        root = '.'.join(parts[-2:])
+        root = ".".join(parts[-2:])
         if root not in _EXCLUDED_DOMAINS and domain not in _EXCLUDED_DOMAINS:
             found.append(domain)
     seen: set = set()
@@ -797,8 +1331,9 @@ def _regex_extract_domains(text: str) -> List[str]:
 # NODE 1 — RESEARCH
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 async def research_node(state: AgentState) -> AgentState:
-    keyword = state['keyword']
+    keyword = state["keyword"]
     logger.info(f"[Node 1] Researching keyword: {keyword}")
 
     queries = [
@@ -823,9 +1358,11 @@ async def research_node(state: AgentState) -> AgentState:
 
     logger.info(f"[Node 1] Total search text length: {len(all_results)}")
 
-    prompt = EXTRACT_URLS_PROMPT.format(keyword=keyword, search_results=all_results[:6000])
+    prompt = EXTRACT_URLS_PROMPT.format(
+        keyword=keyword, search_results=all_results[:6000]
+    )
     response_content = call_llm(prompt, temperature=0.0)
-    
+
     llm_urls = safe_parse_llm_json(response_content, context="research/url_extraction")
     regex_urls = _regex_extract_domains(all_results)
     urls: List[str] = []
@@ -869,8 +1406,11 @@ async def research_node(state: AgentState) -> AgentState:
             context=_build_score_context(keyword, domain, all_results[:2000]),
         )
         score_resp_content = call_llm(score_prompt, temperature=0.0)
-        score_data = safe_parse_llm_json(score_resp_content, context=f"research/score_{domain}") or {}
-        
+        score_data = (
+            safe_parse_llm_json(score_resp_content, context=f"research/score_{domain}")
+            or {}
+        )
+
         # Calculate final AI score using proper formula (don't trust LLM's ai_score)
         ai_score = _calculate_ai_score(score_data)
         ai_reasoning = _serialize_score_reasoning(score_data)
@@ -878,17 +1418,21 @@ async def research_node(state: AgentState) -> AgentState:
         deep_scrape = _should_deep_scrape(score_data)
 
         if _should_skip_domain(score_data):
-            logger.info(f"[Node 1] Scoring {domain}: {ai_score} - Skipping (Very weak fit)")
+            logger.info(
+                f"[Node 1] Scoring {domain}: {ai_score} - Skipping (Very weak fit)"
+            )
             return None
 
         @sync_to_async(thread_sensitive=False)
         def create_lead() -> Dict[str, Any]:
-            company, _ = Company.objects.get_or_create(domain=domain, defaults={'company_name': company_name})
+            company, _ = Company.objects.get_or_create(
+                domain=domain, defaults={"company_name": company_name}
+            )
             company.company_name = company.company_name or company_name
             company.industry = industry
             company.ai_score = ai_score
             company.ai_score_reasoning = ai_reasoning
-            company.crawl_status = 'pending'
+            company.crawl_status = "pending"
             company.save()
             ds, _ = DataSource.objects.get_or_create(
                 domain=domain,
@@ -901,9 +1445,15 @@ async def research_node(state: AgentState) -> AgentState:
                 "company_name": company_name,
                 "initial_ai_score": ai_score,
                 "deep_scrape": deep_scrape,
-                "current_ai_usage": _normalize_string_list(score_data.get("current_ai_usage")),
-                "company_products": _normalize_string_list(score_data.get("company_products")),
-                "services_needed_from_us": _normalize_string_list(score_data.get("services_needed_from_us")),
+                "current_ai_usage": _normalize_string_list(
+                    score_data.get("current_ai_usage")
+                ),
+                "company_products": _normalize_string_list(
+                    score_data.get("company_products")
+                ),
+                "services_needed_from_us": _normalize_string_list(
+                    score_data.get("services_needed_from_us")
+                ),
             }
 
         return await create_lead()
@@ -914,20 +1464,26 @@ async def research_node(state: AgentState) -> AgentState:
         async with scoring_sem:
             return await score_and_create(domain)
 
-    scored = await asyncio.gather(*[_score_with_sem(u) for u in urls], return_exceptions=True)
+    scored = await asyncio.gather(
+        *[_score_with_sem(u) for u in urls], return_exceptions=True
+    )
     for entry in scored:
         if isinstance(entry, dict):
             target_domains.append(entry)
 
-    companies_list = list(state.get('companies', []))
+    companies_list = list(state.get("companies", []))
     for tgt in target_domains:
-        companies_list.append({
-            "domain": tgt['domain'],
-            "company_name": tgt.get("company_name", "Unknown"),
-        })
-        logger.info(f"[Node 1] Accepted company: {tgt.get('company_name', 'Unknown')} | domain: {tgt['domain']}")
+        companies_list.append(
+            {
+                "domain": tgt["domain"],
+                "company_name": tgt.get("company_name", "Unknown"),
+            }
+        )
+        logger.info(
+            f"[Node 1] Accepted company: {tgt.get('company_name', 'Unknown')} | domain: {tgt['domain']}"
+        )
 
-    return {**state, 'target_domains': target_domains, 'companies': companies_list}
+    return {**state, "target_domains": target_domains, "companies": companies_list}
 
 
 async def discover_buyer_contacts_node(state: AgentState) -> AgentState:
@@ -937,7 +1493,9 @@ async def discover_buyer_contacts_node(state: AgentState) -> AgentState:
     target_domains = list(state.get("target_domains", []))
 
     async def process_target(tgt: Dict[str, Any]) -> List[Dict[str, Any]]:
-        company_name = tgt.get("company_name") or extract_company_name_from_host(urlparse(tgt["domain"]).netloc)
+        company_name = tgt.get("company_name") or extract_company_name_from_host(
+            urlparse(tgt["domain"]).netloc
+        )
         domain = tgt["domain"]
         host = urlparse(domain).netloc
 
@@ -945,7 +1503,9 @@ async def discover_buyer_contacts_node(state: AgentState) -> AgentState:
         failed_searches = 0
         for template in BUYER_DISCOVERY_QUERY_TEMPLATES:
             query = template.format(company_name=company_name, host=host)
-            result = await _search_with_fallback(query, context=f"buyer_contacts/{company_name}")
+            result = await _search_with_fallback(
+                query, context=f"buyer_contacts/{company_name}"
+            )
             if result:
                 search_blocks.append(f"Query: {query}\n{result[:1800]}")
                 await asyncio.sleep(2)
@@ -953,12 +1513,16 @@ async def discover_buyer_contacts_node(state: AgentState) -> AgentState:
 
             failed_searches += 1
             if failed_searches >= BUYER_SEARCH_FAILURE_LIMIT:
-                logger.info(f"[Node 1B] {company_name}: stopping external people-search after repeated failures")
+                logger.info(
+                    f"[Node 1B] {company_name}: stopping external people-search after repeated failures"
+                )
                 break
             await asyncio.sleep(3)
 
         if not search_blocks:
-            logger.info(f"[Node 1B] {company_name}: no search evidence found for buyer contacts")
+            logger.info(
+                f"[Node 1B] {company_name}: no search evidence found for buyer contacts"
+            )
             return []
 
         prompt = DISCOVER_BUYER_CONTACTS_PROMPT.format(
@@ -966,7 +1530,9 @@ async def discover_buyer_contacts_node(state: AgentState) -> AgentState:
             domain=domain,
             search_results="\n\n".join(search_blocks)[:7000],
         )
-        parsed = safe_parse_llm_json(call_llm(prompt, temperature=0.0), context=f"buyer_contacts/{company_name}")
+        parsed = safe_parse_llm_json(
+            call_llm(prompt, temperature=0.0), context=f"buyer_contacts/{company_name}"
+        )
         contacts = _normalize_contact_candidates(parsed)
 
         @sync_to_async(thread_sensitive=False)
@@ -999,18 +1565,20 @@ async def discover_buyer_contacts_node(state: AgentState) -> AgentState:
                     if changed:
                         obj.save(update_fields=["linkedin_url", "source_page"])
 
-                saved.append({
-                    "company_id": company.id,
-                    "company_name": company.company_name,
-                    "domain": company.domain,
-                    "contact_id": obj.id,
-                    "contact_name": obj.contact_name,
-                    "contact_role": obj.contact_role,
-                    "contact_email": obj.contact_email,
-                    "linkedin_url": obj.linkedin_url,
-                    "source_page": obj.source_page,
-                    "confidence": contact.get("confidence", "medium"),
-                })
+                saved.append(
+                    {
+                        "company_id": company.id,
+                        "company_name": company.company_name,
+                        "domain": company.domain,
+                        "contact_id": obj.id,
+                        "contact_name": obj.contact_name,
+                        "contact_role": obj.contact_role,
+                        "contact_email": obj.contact_email,
+                        "linkedin_url": obj.linkedin_url,
+                        "source_page": obj.source_page,
+                        "confidence": contact.get("confidence", "medium"),
+                    }
+                )
             return saved
 
         saved_contacts = await save_contacts()
@@ -1021,7 +1589,9 @@ async def discover_buyer_contacts_node(state: AgentState) -> AgentState:
                 f"{_format_contact_summary(saved_contacts)}"
             )
         else:
-            logger.info(f"[Node 1B] {company_name} | domain: {domain} | saved 0 buyer contacts")
+            logger.info(
+                f"[Node 1B] {company_name} | domain: {domain} | saved 0 buyer contacts"
+            )
         return saved_contacts
 
     role_sem = asyncio.Semaphore(1)
@@ -1031,7 +1601,9 @@ async def discover_buyer_contacts_node(state: AgentState) -> AgentState:
             await asyncio.sleep(2)
             return await process_target(tgt)
 
-    results = await asyncio.gather(*[_process_with_sem(tgt) for tgt in target_domains], return_exceptions=True)
+    results = await asyncio.gather(
+        *[_process_with_sem(tgt) for tgt in target_domains], return_exceptions=True
+    )
     for result in results:
         if isinstance(result, list):
             discovered_contacts.extend(result)
@@ -1047,7 +1619,9 @@ async def hunter_enrich_contacts_node(state: AgentState) -> AgentState:
     logger.info("[Node 1C] Enriching buyer contacts with Hunter")
 
     if not os.getenv("HUNTER_API_KEY"):
-        logger.info("[Node 1C] Skipping Hunter enrichment because HUNTER_API_KEY is not set")
+        logger.info(
+            "[Node 1C] Skipping Hunter enrichment because HUNTER_API_KEY is not set"
+        )
         return state
 
     enriched_contacts: List[Dict[str, Any]] = []
@@ -1060,7 +1634,9 @@ async def hunter_enrich_contacts_node(state: AgentState) -> AgentState:
         )
 
     @sync_to_async(thread_sensitive=False)
-    def _save_hunter_contacts(company_id: int, contacts_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _save_hunter_contacts(
+        company_id: int, contacts_data: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         company = Company.objects.get(id=company_id)
         saved_results: List[Dict[str, Any]] = []
 
@@ -1069,7 +1645,9 @@ async def hunter_enrich_contacts_node(state: AgentState) -> AgentState:
             if not email:
                 continue
 
-            existing = Contact.objects.filter(company=company, contact_email=email).first()
+            existing = Contact.objects.filter(
+                company=company, contact_email=email
+            ).first()
             if existing is None:
                 existing = Contact.objects.filter(
                     company=company,
@@ -1078,9 +1656,15 @@ async def hunter_enrich_contacts_node(state: AgentState) -> AgentState:
                 ).first()
 
             if existing is None:
-                conflict = Contact.objects.filter(contact_email=email).exclude(company=company).first()
+                conflict = (
+                    Contact.objects.filter(contact_email=email)
+                    .exclude(company=company)
+                    .first()
+                )
                 if conflict:
-                    logger.info(f"[Node 1C] Skipping duplicate Hunter email {email} already linked elsewhere")
+                    logger.info(
+                        f"[Node 1C] Skipping duplicate Hunter email {email} already linked elsewhere"
+                    )
                     continue
                 existing = Contact.objects.create(
                     company=company,
@@ -1092,11 +1676,17 @@ async def hunter_enrich_contacts_node(state: AgentState) -> AgentState:
             else:
                 updates = []
                 if not existing.contact_email:
-                    conflict = Contact.objects.filter(contact_email=email).exclude(id=existing.id).first()
+                    conflict = (
+                        Contact.objects.filter(contact_email=email)
+                        .exclude(id=existing.id)
+                        .first()
+                    )
                     if conflict is None:
                         existing.contact_email = email
                         updates.append("contact_email")
-                if item.get("contact_name") and (not existing.contact_name or existing.contact_name == "Unknown"):
+                if item.get("contact_name") and (
+                    not existing.contact_name or existing.contact_name == "Unknown"
+                ):
                     existing.contact_name = item["contact_name"]
                     updates.append("contact_name")
                 if item.get("contact_role") and not existing.contact_role:
@@ -1108,17 +1698,19 @@ async def hunter_enrich_contacts_node(state: AgentState) -> AgentState:
                 if updates:
                     existing.save(update_fields=updates)
 
-            saved_results.append({
-                "company_id": company.id,
-                "contact_id": existing.id,
-                "contact_name": existing.contact_name,
-                "contact_role": existing.contact_role,
-                "contact_email": existing.contact_email,
-                "linkedin_url": existing.linkedin_url,
-                "source_page": existing.source_page,
-                "hunter_score": item.get("hunter_score"),
-                "hunter_confidence": item.get("hunter_confidence"),
-            })
+            saved_results.append(
+                {
+                    "company_id": company.id,
+                    "contact_id": existing.id,
+                    "contact_name": existing.contact_name,
+                    "contact_role": existing.contact_role,
+                    "contact_email": existing.contact_email,
+                    "linkedin_url": existing.linkedin_url,
+                    "source_page": existing.source_page,
+                    "hunter_score": item.get("hunter_score"),
+                    "hunter_confidence": item.get("hunter_confidence"),
+                }
+            )
 
         return saved_results
 
@@ -1128,18 +1720,22 @@ async def hunter_enrich_contacts_node(state: AgentState) -> AgentState:
         existing_results: List[Dict[str, Any]] = []
         for contact in existing_contacts:
             if contact.contact_email:
-                existing_results.append({
-                    "company_id": tgt["company_id"],
-                    "contact_id": contact.id,
-                    "contact_name": contact.contact_name,
-                    "contact_role": contact.contact_role,
-                    "contact_email": contact.contact_email,
-                    "linkedin_url": contact.linkedin_url,
-                    "source_page": contact.source_page,
-                })
+                existing_results.append(
+                    {
+                        "company_id": tgt["company_id"],
+                        "contact_id": contact.id,
+                        "contact_name": contact.contact_name,
+                        "contact_role": contact.contact_role,
+                        "contact_email": contact.contact_email,
+                        "linkedin_url": contact.linkedin_url,
+                        "source_page": contact.source_page,
+                    }
+                )
 
         hunter_contacts = await _hunter_find_contacts(host)
-        saved_hunter_contacts = await _save_hunter_contacts(tgt["company_id"], hunter_contacts)
+        saved_hunter_contacts = await _save_hunter_contacts(
+            tgt["company_id"], hunter_contacts
+        )
         results = existing_results[:]
         seen = {entry.get("contact_id") for entry in results}
         for entry in saved_hunter_contacts:
@@ -1166,7 +1762,9 @@ async def hunter_enrich_contacts_node(state: AgentState) -> AgentState:
         async with enrich_sem:
             return await process_target(tgt)
 
-    result_sets = await asyncio.gather(*[_process_with_sem(tgt) for tgt in target_domains], return_exceptions=True)
+    result_sets = await asyncio.gather(
+        *[_process_with_sem(tgt) for tgt in target_domains], return_exceptions=True
+    )
     for result in result_sets:
         if isinstance(result, list):
             enriched_contacts.extend(result)
@@ -1189,60 +1787,80 @@ async def hunter_enrich_contacts_node(state: AgentState) -> AgentState:
 # NODE 2A — SCRAPER
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 async def scrape_node(state: AgentState) -> AgentState:
-    logger.info(f"[Node 2A] Scraping domains: {[d['domain'] for d in state['target_domains']]}")
+    logger.info(
+        f"[Node 2A] Scraping domains: {[d['domain'] for d in state['target_domains']]}"
+    )
 
     cfg = BrowserConfig(
         headless=True,
         verbose=False,
         user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         extra_args=[
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-blink-features=AutomationControlled',
-            '--disable-web-security',
-            '--disable-features=VizDisplayCompositor'
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-blink-features=AutomationControlled",
+            "--disable-web-security",
+            "--disable-features=VizDisplayCompositor",
         ],
     )
     crawler_run_cfg = CrawlerRunConfig(
         wait_until="load",
         page_timeout=60000,  # Increased to 60s for slow sites
-        semaphore_count=3,   # Reduced to 3 to be more gentle
+        semaphore_count=3,  # Reduced to 3 to be more gentle
         delay_before_return_html=2.0,  # Wait 2s after load before scraping
         js_code="""
             // Anti-detection measures
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
             delete navigator.__proto__.webdriver;
-        """
+        """,
     )
     crawl_sem = asyncio.Semaphore(5)
 
     def _extract_suburls(html: str, base_url: str) -> List[Tuple[str, int]]:
-        if not html: return []
+        if not html:
+            return []
         soup = BeautifulSoup(html, "html.parser")
         found: Dict[str, int] = {}
         base_domain = urlparse(base_url).netloc.lower()
 
         def _add(href: str):
             href = href.strip()
-            if href.startswith(('#', 'mailto:', 'javascript:', 'tel:')): return
+            if href.startswith(("#", "mailto:", "javascript:", "tel:")):
+                return
             absolute = urljoin(base_url, href)
-            parsed   = urlparse(absolute)
-            if not parsed.scheme or parsed.netloc.lower() != base_domain or absolute.lower().endswith(_SKIP_EXTENSIONS): return
+            parsed = urlparse(absolute)
+            if (
+                not parsed.scheme
+                or parsed.netloc.lower() != base_domain
+                or absolute.lower().endswith(_SKIP_EXTENSIONS)
+            ):
+                return
             found[absolute] = max(found.get(absolute, -1), url_priority_score(absolute))
 
-        for a in soup.find_all('a', href=True): _add(a['href'])
+        for a in soup.find_all("a", href=True):
+            _add(a["href"])
         return list(found.items())
 
-    async def _crawl_url(crawler, url: str, depth: int, ds_id: int, comp_id: int, page_label: str = "GENERIC") -> Dict[str, Any]:
+    async def _crawl_url(
+        crawler,
+        url: str,
+        depth: int,
+        ds_id: int,
+        comp_id: int,
+        page_label: str = "GENERIC",
+    ) -> Dict[str, Any]:
         if url.lower().endswith(_SKIP_EXTENSIONS):
             return {"success": False, "suburls": []}
 
         @sync_to_async(thread_sensitive=False)
         def get_or_create_chunk():
             chunk, _ = DataChunkProcess.objects.get_or_create(
-                url=url, data_source_id=ds_id, defaults={'status': DataChunkProcess.PENDING}
+                url=url,
+                data_source_id=ds_id,
+                defaults={"status": DataChunkProcess.PENDING},
             )
             return chunk.id, chunk.status
 
@@ -1258,9 +1876,14 @@ async def scrape_node(state: AgentState) -> AgentState:
             result = await crawler.arun(url=crawl_url, config=crawler_run_cfg)
         except Exception as exc:
             exc_text = str(exc)
-            if crawl_url.startswith("https://") and "ERR_SSL_PROTOCOL_ERROR" in exc_text:
-                crawl_url = "http://" + crawl_url[len("https://"):]
-                logger.info(f"[Node 2A] Retrying with HTTP after SSL failure: {url} -> {crawl_url}")
+            if (
+                crawl_url.startswith("https://")
+                and "ERR_SSL_PROTOCOL_ERROR" in exc_text
+            ):
+                crawl_url = "http://" + crawl_url[len("https://") :]
+                logger.info(
+                    f"[Node 2A] Retrying with HTTP after SSL failure: {url} -> {crawl_url}"
+                )
                 try:
                     result = await crawler.arun(url=crawl_url, config=crawler_run_cfg)
                 except Exception as retry_exc:
@@ -1270,12 +1893,14 @@ async def scrape_node(state: AgentState) -> AgentState:
                     exc = None
 
         if exc is not None:
+
             @sync_to_async(thread_sensitive=False)
             def mark_exception():
                 DataChunkProcess.objects.filter(id=chunk_id).update(
                     status=DataChunkProcess.ERROR,
                     error=str(exc)[:1000],
                 )
+
             await mark_exception()
             return {
                 "success": False,
@@ -1285,22 +1910,27 @@ async def scrape_node(state: AgentState) -> AgentState:
             }
 
         if not result or not result.success:
+
             @sync_to_async(thread_sensitive=False)
             def mark_error():
                 DataChunkProcess.objects.filter(id=chunk_id).update(
                     status=DataChunkProcess.ERROR,
                     error=getattr(result, "error_message", None) or "crawl_failed",
                 )
+
             await mark_error()
             return {
                 "success": False,
                 "suburls": [],
-                "failure_reason": getattr(result, "error_message", None) or "crawl_failed",
+                "failure_reason": getattr(result, "error_message", None)
+                or "crawl_failed",
                 "host": host,
             }
 
         html_content = result.cleaned_html or ""
-        raw_text = BeautifulSoup(html_content, "html.parser").get_text(separator=" ", strip=True)
+        raw_text = BeautifulSoup(html_content, "html.parser").get_text(
+            separator=" ", strip=True
+        )
 
         text_lower = raw_text.lower()
         emails_found = _extract_emails(text_lower)
@@ -1316,18 +1946,34 @@ async def scrape_node(state: AgentState) -> AgentState:
             if should_use_llm:
                 for attempt in range(2):
                     try:
-                        prompt_content = EXTRACT_CONTACTS_PROMPT.format(content=raw_text[:5000])
+                        prompt_content = EXTRACT_CONTACTS_PROMPT.format(
+                            content=raw_text[:5000]
+                        )
                         resp_content = call_llm(prompt_content, temperature=0.0)
-                        parsed = safe_parse_llm_json(resp_content, context=f"extract_contacts/{crawl_url}")
+                        parsed = safe_parse_llm_json(
+                            resp_content, context=f"extract_contacts/{crawl_url}"
+                        )
                         if isinstance(parsed, dict) and any(
-                            k in parsed for k in ["contact_email", "services_offered", "company_products", "ai_signals"]
+                            k in parsed
+                            for k in [
+                                "contact_email",
+                                "services_offered",
+                                "company_products",
+                                "ai_signals",
+                            ]
                         ):
                             if not parsed.get("contact_email"):
-                                parsed["contact_email"] = contact_data.get("contact_email")
+                                parsed["contact_email"] = contact_data.get(
+                                    "contact_email"
+                                )
                             if not parsed.get("contact_phone"):
-                                parsed["contact_phone"] = contact_data.get("contact_phone")
+                                parsed["contact_phone"] = contact_data.get(
+                                    "contact_phone"
+                                )
                             if not parsed.get("page_summary"):
-                                parsed["page_summary"] = contact_data.get("page_summary")
+                                parsed["page_summary"] = contact_data.get(
+                                    "page_summary"
+                                )
                             contact_data = parsed
                             break
                     except Exception:
@@ -1336,12 +1982,14 @@ async def scrape_node(state: AgentState) -> AgentState:
         @sync_to_async(thread_sensitive=False)
         def update_db():
             DataChunkProcess.objects.filter(id=chunk_id).update(
-                status=DataChunkProcess.READY, result_data=contact_data, 
-                website_response_status=str(result.status_code or "200")
+                status=DataChunkProcess.READY,
+                result_data=contact_data,
+                website_response_status=str(result.status_code or "200"),
             )
             comp = Company.objects.get(id=comp_id)
-            if contact_data.get("company_name"): comp.company_name = contact_data["company_name"]
-            if contact_data.get("services_offered") and not comp.services_offered: 
+            if contact_data.get("company_name"):
+                comp.company_name = contact_data["company_name"]
+            if contact_data.get("services_offered") and not comp.services_offered:
                 comp.services_offered = contact_data["services_offered"]
             comp.save()
 
@@ -1351,12 +1999,13 @@ async def scrape_node(state: AgentState) -> AgentState:
 
             if contact_email:
                 Contact.objects.get_or_create(
-                    company=comp, contact_email=contact_email,
+                    company=comp,
+                    contact_email=contact_email,
                     defaults={
-                        'contact_name':  contact_name or "Unknown",
-                        'contact_role':  contact_role or "",
-                        'source_page':   crawl_url,
-                    }
+                        "contact_name": contact_name or "Unknown",
+                        "contact_role": contact_role or "",
+                        "source_page": crawl_url,
+                    },
                 )
             elif contact_name or contact_role:
                 existing = Contact.objects.filter(
@@ -1373,17 +2022,23 @@ async def scrape_node(state: AgentState) -> AgentState:
                     )
 
         await update_db()
-        return {"success": True, "suburls": _extract_suburls(html_content, crawl_url), "host": host}
+        return {
+            "success": True,
+            "suburls": _extract_suburls(html_content, crawl_url),
+            "host": host,
+        }
 
     async def _crawl_with_sem(crawler, url, depth, ds_id, comp_id, label="GENERIC"):
         async with crawl_sem:
             return await _crawl_url(crawler, url, depth, ds_id, comp_id, label)
 
     async def process_domain(tgt: Dict[str, Any]) -> set:
-        start_url = tgt['domain']
-        ds_id     = tgt['ds_id']
-        comp_id   = tgt['company_id']
-        max_urls = MAX_URLS_PER_DOMAIN_DEEP if tgt.get("deep_scrape") else MAX_URLS_PER_DOMAIN
+        start_url = tgt["domain"]
+        ds_id = tgt["ds_id"]
+        comp_id = tgt["company_id"]
+        max_urls = (
+            MAX_URLS_PER_DOMAIN_DEEP if tgt.get("deep_scrape") else MAX_URLS_PER_DOMAIN
+        )
         base_host = urlparse(start_url).netloc.lower()
         visited = {start_url}
         queue: List[Tuple[int, int, str, str]] = []
@@ -1391,25 +2046,34 @@ async def scrape_node(state: AgentState) -> AgentState:
         host_failure_count = 0
 
         def can_queue(candidate_url: str) -> bool:
-            return urlparse(candidate_url).netloc.lower() == base_host and host_failure_count < MAX_HOST_NETWORK_FAILURES
+            return (
+                urlparse(candidate_url).netloc.lower() == base_host
+                and host_failure_count < MAX_HOST_NETWORK_FAILURES
+            )
 
         @sync_to_async(thread_sensitive=False)
         def mark_crawling():
-            Company.objects.filter(id=comp_id).update(crawl_status='crawling')
+            Company.objects.filter(id=comp_id).update(crawl_status="crawling")
 
         await mark_crawling()
 
         # Validate domain resolves before attempting to crawl
         domain_resolves = await _domain_resolves(base_host)
         if not domain_resolves:
-            logger.warning(f"[Node 2A] {start_url}: DNS resolution failed — skipping domain")
+            logger.warning(
+                f"[Node 2A] {start_url}: DNS resolution failed — skipping domain"
+            )
             host_failure_count = MAX_HOST_NETWORK_FAILURES
         else:
             # Homepage crawl only if domain resolves
-            homepage_result = await _crawl_with_sem(crawler, start_url, 0, ds_id, comp_id, "GENERIC")
+            homepage_result = await _crawl_with_sem(
+                crawler, start_url, 0, ds_id, comp_id, "GENERIC"
+            )
             if isinstance(homepage_result, dict) and homepage_result.get("success"):
                 success_count += 1
-            elif isinstance(homepage_result, dict) and _is_network_failure(homepage_result.get("failure_reason", "")):
+            elif isinstance(homepage_result, dict) and _is_network_failure(
+                homepage_result.get("failure_reason", "")
+            ):
                 # Homepage itself is unreachable — no point trying /contact, /team, etc.
                 # Immediately mark as max failures to skip all further crawling.
                 host_failure_count = MAX_HOST_NETWORK_FAILURES
@@ -1417,22 +2081,34 @@ async def scrape_node(state: AgentState) -> AgentState:
                     f"[Node 2A] {start_url}: network failure on homepage (timeout/unreachable), "
                     f"skipping all sub-URLs for this domain"
                 )
-            
+
             # Only process queue if homepage result exists
             if isinstance(homepage_result, dict):
                 for child_url, child_score in homepage_result.get("suburls", []):
-                    if can_queue(child_url) and child_url not in visited and len(visited) < max_urls:
+                    if (
+                        can_queue(child_url)
+                        and child_url not in visited
+                        and len(visited) < max_urls
+                    ):
                         visited.add(child_url)
                         queue.append((child_score, 1, child_url, "GENERIC"))
 
-        for score, seed_url in build_priority_seed_urls(start_url, include_exploratory=bool(tgt.get("deep_scrape"))):
-            if can_queue(seed_url) and seed_url not in visited and len(visited) < max_urls:
+        for score, seed_url in build_priority_seed_urls(
+            start_url, include_exploratory=bool(tgt.get("deep_scrape"))
+        ):
+            if (
+                can_queue(seed_url)
+                and seed_url not in visited
+                and len(visited) < max_urls
+            ):
                 visited.add(seed_url)
                 queue.append((score, 1, seed_url, "PRIORITY"))
 
         while queue and len(visited) < max_urls:
             if host_failure_count >= MAX_HOST_NETWORK_FAILURES:
-                logger.info(f"[Node 2A] {start_url}: stopping further crawl after repeated network failures")
+                logger.info(
+                    f"[Node 2A] {start_url}: stopping further crawl after repeated network failures"
+                )
                 break
             queue.sort(key=lambda x: x[0], reverse=True)
             batch, queue = queue[:10], queue[10:]
@@ -1440,10 +2116,12 @@ async def scrape_node(state: AgentState) -> AgentState:
             for score, depth, u, label in batch:
                 if not can_queue(u):
                     continue
-                if len(visited) + len(tasks) >= max_urls: break
+                if len(visited) + len(tasks) >= max_urls:
+                    break
                 tasks.append(_crawl_with_sem(crawler, u, depth, ds_id, comp_id, label))
-            
-            if not tasks: break
+
+            if not tasks:
+                break
             results = await asyncio.gather(*tasks, return_exceptions=True)
             for res in results:
                 if isinstance(res, dict):
@@ -1458,16 +2136,24 @@ async def scrape_node(state: AgentState) -> AgentState:
                         if host_failure_count >= MAX_HOST_NETWORK_FAILURES:
                             break
                     for child_url, child_score in res.get("suburls", []):
-                        if can_queue(child_url) and child_url not in visited and len(visited) < max_urls:
+                        if (
+                            can_queue(child_url)
+                            and child_url not in visited
+                            and len(visited) < max_urls
+                        ):
                             visited.add(child_url)
                             queue.append((child_score, depth + 1, child_url, "GENERIC"))
             if host_failure_count >= MAX_HOST_NETWORK_FAILURES:
-                logger.info(f"[Node 2A] {start_url}: halting queue expansion after repeated network failures")
+                logger.info(
+                    f"[Node 2A] {start_url}: halting queue expansion after repeated network failures"
+                )
                 break
 
         @sync_to_async(thread_sensitive=False)
         def finalize_company():
-            Company.objects.filter(id=comp_id).update(crawl_status='done' if success_count else 'failed')
+            Company.objects.filter(id=comp_id).update(
+                crawl_status="done" if success_count else "failed"
+            )
 
         await finalize_company()
         return visited
@@ -1479,7 +2165,10 @@ async def scrape_node(state: AgentState) -> AgentState:
     crawler = AsyncWebCrawler(config=cfg)
     await crawler.start()
     try:
-        await asyncio.gather(*[process_domain(tgt) for tgt in state.get('target_domains', [])], return_exceptions=True)
+        await asyncio.gather(
+            *[process_domain(tgt) for tgt in state.get("target_domains", [])],
+            return_exceptions=True,
+        )
     finally:
         await crawler.close()
 
@@ -1490,16 +2179,18 @@ async def scrape_node(state: AgentState) -> AgentState:
 # NODE 2B — AI GAP ANALYSIS
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 async def ai_gap_analysis_node(state: AgentState) -> AgentState:
     logger.info("[Node 2B] Starting AI Gap Analysis Node")
+
     @sync_to_async(thread_sensitive=False)
     def get_companies_to_analyze():
-        comp_ids = [t['company_id'] for t in state.get('target_domains', [])]
+        comp_ids = [t["company_id"] for t in state.get("target_domains", [])]
         return list(Company.objects.filter(id__in=comp_ids))
 
     companies = await get_companies_to_analyze()
     target_map = {t["company_id"]: t for t in state.get("target_domains", [])}
-    
+
     for c in companies:
         try:
             logger.info(f"[Node 2B] Analyzing {c.company_name}")
@@ -1508,8 +2199,9 @@ async def ai_gap_analysis_node(state: AgentState) -> AgentState:
             @sync_to_async(thread_sensitive=False)
             def get_chunks():
                 return list(
-                    DataChunkProcess.objects.filter(data_source_id=tgt.get("ds_id"), status=DataChunkProcess.READY)
-                    .order_by("-updated_at")[:20]
+                    DataChunkProcess.objects.filter(
+                        data_source_id=tgt.get("ds_id"), status=DataChunkProcess.READY
+                    ).order_by("-updated_at")[:20]
                 )
 
             chunks = await get_chunks()
@@ -1528,13 +2220,24 @@ async def ai_gap_analysis_node(state: AgentState) -> AgentState:
                     ),
                 )
                 score_resp_content = call_llm(score_prompt, temperature=0.0)
-                rescored_data = safe_parse_llm_json(score_resp_content, context=f"rescore/{c.company_name}") or {}
+                rescored_data = (
+                    safe_parse_llm_json(
+                        score_resp_content, context=f"rescore/{c.company_name}"
+                    )
+                    or {}
+                )
             else:
                 rescored_data = {}
 
-            products = _normalize_string_list(rescored_data.get("company_products")) or page_signals.get("company_products", [])
-            current_ai_usage = _normalize_string_list(rescored_data.get("current_ai_usage")) or page_signals.get("current_ai_usage", [])
-            services_needed = _normalize_string_list(rescored_data.get("services_needed_from_us")) or page_signals.get("services_needed_from_us", [])
+            products = _normalize_string_list(
+                rescored_data.get("company_products")
+            ) or page_signals.get("company_products", [])
+            current_ai_usage = _normalize_string_list(
+                rescored_data.get("current_ai_usage")
+            ) or page_signals.get("current_ai_usage", [])
+            services_needed = _normalize_string_list(
+                rescored_data.get("services_needed_from_us")
+            ) or page_signals.get("services_needed_from_us", [])
 
             prompt = AI_GAP_ANALYSIS_PROMPT.format(
                 company_name=c.company_name,
@@ -1545,11 +2248,17 @@ async def ai_gap_analysis_node(state: AgentState) -> AgentState:
                 services_needed_from_us=", ".join(services_needed) or "Unknown",
             )
             resp_content = call_llm(prompt, temperature=0.3)
-            analysis_data = safe_parse_llm_json(resp_content, context=f"gaps/{c.company_name}") or {}
-            
+            analysis_data = (
+                safe_parse_llm_json(resp_content, context=f"gaps/{c.company_name}")
+                or {}
+            )
+
             @sync_to_async(thread_sensitive=False)
             def save_analysis():
-                final_services_needed = _normalize_string_list(analysis_data.get("services_needed_from_us")) or services_needed
+                final_services_needed = (
+                    _normalize_string_list(analysis_data.get("services_needed_from_us"))
+                    or services_needed
+                )
                 c.industry = rescored_data.get("industry") or c.industry
                 # Recalculate score with proper formula, don't trust LLM's ai_score
                 if rescored_data:
@@ -1559,8 +2268,12 @@ async def ai_gap_analysis_node(state: AgentState) -> AgentState:
                 if not c.services_offered and page_signals.get("page_summaries"):
                     c.services_offered = page_signals["page_summaries"][0]
 
-                gaps = analysis_data.get("ai_gaps_detected", "Potential manual processes")
-                recommendations = analysis_data.get("ai_recommendations", "Custom AI integration")
+                gaps = analysis_data.get(
+                    "ai_gaps_detected", "Potential manual processes"
+                )
+                recommendations = analysis_data.get(
+                    "ai_recommendations", "Custom AI integration"
+                )
 
                 if products:
                     gaps += f"\nProducts observed: {', '.join(products[:6])}."
@@ -1580,28 +2293,26 @@ async def ai_gap_analysis_node(state: AgentState) -> AgentState:
     return state
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# NODE 3 — OUTREACH
-# ──────────────────────────────────────────────────────────────────────────────
 
 async def outreach_node(state: AgentState) -> AgentState:
     logger.info("[Node 3] Starting Outreach Emails Node")
 
     @sync_to_async(thread_sensitive=False)
     def get_contacts():
-        comp_ids = [t['company_id'] for t in state.get('target_domains', [])]
+        comp_ids = [t["company_id"] for t in state.get("target_domains", [])]
         return list(
             Contact.objects.filter(
                 company_id__in=comp_ids,
                 company__do_not_contact=False,
                 contact_email__isnull=False,
-            ).select_related('company')
+            ).select_related("company")
         )
 
     contacts = await get_contacts()
 
     for c in contacts:
         try:
+
             @sync_to_async(thread_sensitive=False)
             def already_actioned() -> bool:
                 return Outreach.objects.filter(contact=c, company=c.company).exists()
@@ -1616,10 +2327,12 @@ async def outreach_node(state: AgentState) -> AgentState:
                 industry=c.company.industry or "",
                 services_offered=c.company.services_offered or "",
                 ai_gaps=c.company.ai_gaps_detected or "",
-                ai_recs=c.company.ai_recommendations or ""
+                ai_recs=c.company.ai_recommendations or "",
             )
             resp_content = call_llm(prompt, temperature=0.7)
-            email_data = safe_parse_llm_json(resp_content, context=f"outreach/{c.contact_email}")
+            email_data = safe_parse_llm_json(
+                resp_content, context=f"outreach/{c.contact_email}"
+            )
 
             if not isinstance(email_data, dict) or not email_data.get("subject"):
                 continue
@@ -1629,7 +2342,7 @@ async def outreach_node(state: AgentState) -> AgentState:
                 Outreach.objects.create(
                     contact=c,
                     company=c.company,
-                    status='drafted',
+                    status="drafted",
                     email_subject=email_data.get("subject", "Connecting"),
                     email_body=email_data.get("body", ""),
                 )
@@ -1643,43 +2356,397 @@ async def outreach_node(state: AgentState) -> AgentState:
     return state
 
 
+# NODE 4 — SEND TO COMPANIES (BULK - NO APPROVAL NEEDED)
+# ──────────────────────────────────────────────────────────────────────────────
+
+from asgiref.sync import sync_to_async
+
+async def send_to_companies_node(state: AgentState) -> AgentState:
+    """
+    Generate BULK summarized emails (company-level) and SAVE to Outreach.
+    DOES NOT SEND. Requires approval later.
+    """
+
+    logger.info("[Node 4] Generating BULK emails (summary → Outreach)")
+
+    @sync_to_async(thread_sensitive=False)
+    def process():
+        companies = Company.objects.prefetch_related("contacts").filter(
+    do_not_contact=False,
+    contacts__isnull=False,
+).distinct()
+
+        created = 0
+
+        for company in companies:
+
+            contacts = company.contacts.filter(
+    contact_email__isnull=False,
+)
+
+            if not contacts.exists():
+                continue
+
+            # 🔥 SUMMARIZATION (your original logic)
+            ai_gaps_summary = company.ai_gaps_detected or "No specific gaps detected"
+            ai_recommendations = (
+                company.ai_recommendations or "AI solutions tailored to your industry"
+            )
+
+            subject = f"AI Adoption Analysis for {company.company_name}"
+
+            body = f"""Hello Team,
+
+We've analyzed {company.company_name} and identified key AI adoption opportunities.
+
+=== AI GAPS IDENTIFIED ===
+
+{ai_gaps_summary}
+
+=== OUR RECOMMENDATIONS ===
+
+{ai_recommendations}
+
+We believe these AI solutions could significantly improve your operational efficiency.
+
+Best regards,
+Sales Team
+"""
+
+            # ✅ SAVE into Outreach (not send)
+            for contact in contacts:
+                obj, created_flag = Outreach.objects.get_or_create(
+                company=company,
+                contact=contact,
+                defaults={
+                    "email_subject": subject,
+                    "email_body": body,
+                    "status": "drafted",
+                },
+            )
+
+            # Only update if still drafted
+            if not created_flag and obj.status == "drafted":
+                obj.email_subject = subject
+                obj.email_body = body
+                obj.save(update_fields=["email_subject", "email_body"])
+
+                if created_flag:
+                    created += 1
+
+        return created
+
+    created_count = await process()
+
+    logger.info(f"[Node 4] Created {created_count} outreach records (drafted)")
+
+    return {
+        **state,
+        "approval_requests": created_count
+    }
+
+
+# NODE 5 — CREATE APPROVAL REQUEST (DUMMY)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+async def create_approval_request_node(state: AgentState) -> AgentState:
+    """
+    Create approval request for BULK emails.
+    """
+    logger.info("[Node 5] Creating Approval Request for BULK Emails")
+
+    @sync_to_async(thread_sensitive=False)
+    def get_drafted_outreach():
+        """Get all drafted outreach records."""
+        return list(
+            Outreach.objects.filter(
+                status="drafted",
+            ).select_related("contact", "company")
+        )
+
+    drafted_outreach = await get_drafted_outreach()
+    logger.info(
+        f"[Node 5] Found {len(drafted_outreach)} drafted outreach records for approval"
+    )
+
+    # Add approval_pending status to state for tracking
+    state["approval_requests"] = len(drafted_outreach)
+    logger.info("[Node 5] Approval requests created and marked as pending for review")
+
+    return state
+
+
+async def approve_bulk_emails_node(state: AgentState) -> AgentState:
+    logger.info("[Node] Approving BULK emails")
+
+    @sync_to_async(thread_sensitive=False)
+    def approve():
+        from django.utils import timezone
+
+        count = Outreach.objects.filter(status="drafted").update(
+            status="approved",
+            approved_at=timezone.now(),
+            approved_by="SYSTEM",
+        )
+        return count
+
+    approved_count = await approve()
+
+    logger.info(f"[Node] Approved {approved_count} emails")
+
+    return state
+
+from asgiref.sync import sync_to_async
+
+async def send_personalized_email_node(state: AgentState) -> AgentState:
+    """
+    Send personalized emails directly (NO approval).
+    Sends all drafted emails for a specific company.
+    """
+
+    logger.info("[Personalized] Sending emails (no approval required)")
+
+    company_id = state.get("company_id")
+
+    if not company_id:
+        logger.warning("[Personalized] No company_id provided, skipping")
+        return state
+
+    @sync_to_async(thread_sensitive=False)
+    def get_drafted_outreach():
+        return list(
+            Outreach.objects.filter(
+                company_id=company_id,
+                status="drafted",
+                sent_at__isnull=True,
+            ).select_related("contact", "company")
+        )
+
+    outreach_list = await get_drafted_outreach()
+
+    logger.info(f"[Personalized] Found {len(outreach_list)} emails to send")
+
+    sent_count = 0
+    failed_count = 0
+
+    for outreach in outreach_list:
+        try:
+            contact = outreach.contact
+            email = contact.contact_email
+
+            if not email:
+                logger.warning(f"[Personalized] Skipping contact {contact.id} (no email)")
+                continue
+
+            subject = outreach.final_subject
+            body = outreach.final_body
+
+            logger.info(
+                f"[Personalized] Sending to {email} | Company: {outreach.company.company_name}"
+            )
+
+            result = send_email_payload(
+                to_email=email,
+                subject=subject,
+                body=body,
+            )
+
+            if result.get("ok"):
+
+                @sync_to_async(thread_sensitive=False)
+                def mark_sent():
+                    from django.utils import timezone
+
+                    outreach.status = "sent"
+                    outreach.sent_at = timezone.now()
+                    outreach.sendgrid_message_id = result.get("message_id", "")
+                    outreach.save(update_fields=["status", "sent_at", "sendgrid_message_id"])
+
+                await mark_sent()
+                sent_count += 1
+
+            else:
+
+                @sync_to_async(thread_sensitive=False)
+                def mark_failed():
+                    outreach.status = "failed"
+                    outreach.save(update_fields=["status"])
+
+                await mark_failed()
+                failed_count += 1
+
+        except Exception as e:
+            logger.error(f"[Personalized] Exception for outreach {outreach.id}: {e}")
+            failed_count += 1
+
+    logger.info(
+        f"[Personalized] Completed | Sent: {sent_count} | Failed: {failed_count}"
+    )
+
+    return {
+        **state,
+        "personalized_sent": sent_count
+    }
+
+
+
+async def send_bulk_generalized_email_node(state: AgentState) -> AgentState:
+    """
+    Send BULK emails (approved ones) to all contacts across companies.
+    Requires approval before sending.
+    """
+
+    logger.info("[Bulk] Sending APPROVED bulk emails")
+
+    @sync_to_async(thread_sensitive=False)
+    def get_approved_outreach():
+        return list(
+            Outreach.objects.filter(
+                status="approved",
+                sent_at__isnull=True,
+            ).select_related("contact", "company")
+        )
+
+    outreach_list = await get_approved_outreach()
+
+    logger.info(f"[Bulk] Found {len(outreach_list)} emails to send")
+
+    sent_count = 0
+    failed_count = 0
+
+    for outreach in outreach_list:
+        try:
+            contact = outreach.contact
+            email = contact.contact_email
+
+            if not email:
+                logger.warning(f"[Bulk] Skipping contact {contact.id} (no email)")
+                continue
+
+            subject = outreach.final_subject
+            body = outreach.final_body
+
+            logger.info(
+                f"[Bulk] Sending to {email} | Company: {outreach.company.company_name}"
+            )
+
+            result = send_email_payload(
+                to_email=email,
+                subject=subject,
+                body=body,
+            )
+
+            if result.get("ok"):
+                @sync_to_async(thread_sensitive=False)
+                def mark_sent():
+                    from django.utils import timezone
+
+                    outreach.status = "sent"
+                    outreach.sent_at = timezone.now()
+                    outreach.sendgrid_message_id = result.get("message_id", "")
+                    outreach.save(update_fields=["status", "sent_at", "sendgrid_message_id"])
+
+                await mark_sent()
+                sent_count += 1
+
+            else:
+                @sync_to_async(thread_sensitive=False)
+                def mark_failed():
+                    outreach.status = "failed"
+                    outreach.save(update_fields=["status"])
+
+                await mark_failed()
+                failed_count += 1
+
+        except Exception as e:
+            logger.error(f"[Bulk] Exception for outreach {outreach.id}: {e}")
+            failed_count += 1
+
+    logger.info(
+        f"[Bulk] Completed | Sent: {sent_count} | Failed: {failed_count}"
+    )
+
+    return {
+        **state,
+        "bulk_sent": sent_count
+    }
+
+def should_send_personalized_emails(state: AgentState) -> str:
+    if state.get("send_personalized_emails", False):
+        return "send_personalized_email"
+    return "send_to_companies"
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Pipeline
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def build_pipeline():
     workflow = StateGraph(AgentState)
+
     workflow.add_node("research", research_node)
     workflow.add_node("discover_buyer_contacts", discover_buyer_contacts_node)
-    workflow.add_node("scrape",   scrape_node)
+    workflow.add_node("scrape", scrape_node)
     workflow.add_node("hunter_enrich_contacts", hunter_enrich_contacts_node)
     workflow.add_node("ai_gap_analysis", ai_gap_analysis_node)
     workflow.add_node("outreach", outreach_node)
-    
+
+    # BULK NODES
+    workflow.add_node("send_to_companies", send_to_companies_node)
+    workflow.add_node("create_approval_request", create_approval_request_node)
+    workflow.add_node("approve_bulk_emails", approve_bulk_emails_node)
+    workflow.add_node("send_bulk_generalized_email", send_bulk_generalized_email_node)
+
+    # PERSONALIZED NODE
+    workflow.add_node("send_personalized_email", send_personalized_email_node)
+
+    # FLOW
     workflow.add_edge(START, "research")
     workflow.add_edge("research", "discover_buyer_contacts")
     workflow.add_edge("discover_buyer_contacts", "scrape")
     workflow.add_edge("scrape", "hunter_enrich_contacts")
     workflow.add_edge("hunter_enrich_contacts", "ai_gap_analysis")
     workflow.add_edge("ai_gap_analysis", "outreach")
-    workflow.add_edge("outreach", END)
-    
+
+    # 🔥 CORRECT BRANCHING
+    workflow.add_conditional_edges(
+        "outreach",
+        should_send_personalized_emails,
+        {
+            "send_personalized_email": "send_personalized_email",
+            "send_to_companies": "send_to_companies",
+        },
+    )
+
+    # BULK FLOW
+    workflow.add_edge("send_to_companies", "create_approval_request")
+    workflow.add_edge("create_approval_request", "approve_bulk_emails")
+    workflow.add_edge("approve_bulk_emails", "send_bulk_generalized_email")
+    workflow.add_edge("send_bulk_generalized_email", END)
+
+    # PERSONALIZED FLOW
+    workflow.add_edge("send_personalized_email", END)
+
     return workflow.compile()
 
 
 async def execute_pipeline(keyword: str):
     import django
+
     if not django.apps.apps.ready:
         django.setup()
 
     app = build_pipeline()
     initial_state: AgentState = {
-        "keyword":        keyword,
+        "keyword": keyword,
         "target_domains": [],
-        "scraped_urls":   [],
-        "emails":         [],
-        "companies":      [],
+        "scraped_urls": [],
+        "emails": [],
+        "companies": [],
         "buyer_contacts": [],
+        "approval_requests": 0,
+        "send_personalized_emails": True,  # Set to True to enable personalized emails, False to skip
     }
 
     logger.info("====================================")
