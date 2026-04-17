@@ -4,9 +4,21 @@ from typing import Dict, Any
 import requests
 from django.conf import settings
 
+TEST_MODE = True
+TEST_EMAIL = "akshtab99@gmail.com"
+
 
 def send_email_payload(to_email: str, subject: str, body: str) -> Dict[str, Any]:
-    base_url = getattr(settings, "EMAIL_MICROSERVICE_URL", os.getenv("EMAIL_MICROSERVICE_URL", "http://127.0.0.1:8001"))
+    base_url = getattr(
+        settings,
+        "EMAIL_MICROSERVICE_URL",
+        os.getenv("EMAIL_MICROSERVICE_URL", "http://127.0.0.1:8001"),
+    )
+
+    if TEST_MODE:
+        print(f"[TEST MODE] Redirecting email to {TEST_EMAIL}")
+        to_email = TEST_EMAIL
+    
     endpoint = f"{base_url.rstrip('/')}/api/send-email"
     payload = {
         "to_email": to_email,

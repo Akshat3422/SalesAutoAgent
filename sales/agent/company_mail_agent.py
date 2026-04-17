@@ -20,12 +20,16 @@ def _combine_company_drafts(company, outreach_rows: List[Outreach]) -> Dict[str,
             f"Subject: {outreach.final_subject or ''}\n"
             f"Body:\n{outreach.final_body or ''}"
         )
+    
+    formatted_drafts = "\n\n".join(
+    [f"Draft {i+1}:\n{d}" for i, d in enumerate(drafts)]
+)
 
     prompt = COMBINE_COMPANY_OUTREACH_PROMPT.format(
         company_name=company.company_name,
         industry=company.industry or "Unknown",
         domain=company.domain,
-        drafts="\n\n".join(drafts)[:12000],
+        drafts=formatted_drafts,
     )
     parsed = safe_parse_llm_json(call_llm(prompt, temperature=0.2), context=f"combine_outreach/{company.id}") or {}
     subject = str(parsed.get("subject") or "").strip()
