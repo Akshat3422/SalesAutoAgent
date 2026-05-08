@@ -15,6 +15,7 @@ from sales.outreach.models import Outreach
 from sales.companies.models import Company
 from sales.contacts.models import Contact
 
+
 async def check_microservice_health():
     print("\n[1] Checking Email Microservice Health...")
     url = os.getenv("EMAIL_MICROSERVICE_URL", "http://127.0.0.1:8001")
@@ -28,15 +29,17 @@ async def check_microservice_health():
     except Exception as e:
         print(f"[ERROR] Could not connect to Microservice at {url}: {e}")
 
+
 @sync_to_async
 def get_stats():
     return {
         "companies": Company.objects.count(),
         "contacts": Contact.objects.count(),
-        "drafts": Outreach.objects.filter(status='drafted').count(),
-        "approved": Outreach.objects.filter(status='approved').count(),
-        "sent": Outreach.objects.filter(status='sent').count(),
+        "drafts": Outreach.objects.filter(status="drafted").count(),
+        "approved": Outreach.objects.filter(status="approved").count(),
+        "sent": Outreach.objects.filter(status="sent").count(),
     }
+
 
 async def check_database_stats():
     print("\n[2] Checking Database Stats...")
@@ -50,18 +53,25 @@ async def check_database_stats():
     except Exception as e:
         print(f"[ERROR] Failed to fetch DB stats: {e}")
 
+
 async def preview_company_wise_outreach():
     print("\n[3] Previewing Company-Wise Combined Emails (Logic Test)...")
     from sales.agent.company_mail_agent import _combine_company_drafts
-    
+
     @sync_to_async
     def get_approved():
-        return list(Outreach.objects.filter(status='approved').select_related('company', 'contact'))
+        return list(
+            Outreach.objects.filter(status="approved").select_related(
+                "company", "contact"
+            )
+        )
 
     approved_drafts = await get_approved()
-    
+
     if not approved_drafts:
-        print("[INFO] No 'approved' drafts found. Please approve some drafts in the dashboard first to see a preview.")
+        print(
+            "[INFO] No 'approved' drafts found. Please approve some drafts in the dashboard first to see a preview."
+        )
         return
 
     # Group by company
@@ -75,21 +85,24 @@ async def preview_company_wise_outreach():
         company = rows[0].company
         print(f"\n[COMPANY] Company: {company.company_name} ({company.domain})")
         print(f"[*] Combining {len(rows)} contact-specific drafts...")
-        
+
         try:
             # _combine_company_drafts calls LLM and is sync, use to_thread
             combined = await asyncio.to_thread(_combine_company_drafts, company, rows)
             print(f"[EMAIL] Combined Subject: {combined['subject']}")
             print(f"[EMAIL] Combined Body Preview: {combined['body'][:200]}...")
-            
+
             @sync_to_async
             def get_contact_count():
-                return Contact.objects.filter(company=company, contact_email__isnull=False).count()
-            
+                return Contact.objects.filter(
+                    company=company, contact_email__isnull=False
+                ).count()
+
             count = await get_contact_count()
             print(f"[CONTACTS] This will be sent to {count} contacts.")
         except Exception as e:
             print(f"[ERROR] Error combining drafts: {e}")
+
 
 async def main():
     print("SalesAuto Outreach Workflow Diagnostic Tool")
@@ -99,6 +112,7 @@ async def main():
     await preview_company_wise_outreach()
     print("\n==============================================")
     print("Diagnostic complete.")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

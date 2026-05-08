@@ -1,0 +1,313 @@
+{
+  "name": "SalesAuto API Response Sheet",
+  "generated_at": "2026-05-08T00:00:00Z",
+  "base_urls": {
+    "django_api": "http://localhost:8000",
+    "email_service": "http://localhost:8001"
+  },
+  "endpoints": [
+    {
+      "service": "Django",
+      "method": "GET",
+      "path": "/",
+      "description": "Root health check for the SalesAuto API.",
+      "response_example": {
+        "status": "ok",
+        "message": "SalesAuto API is running"
+      }
+    },
+    {
+      "service": "Django",
+      "method": "GET",
+      "path": "/api/dashboard/stats/",
+      "description": "Dashboard aggregate statistics for company and outreach metrics.",
+      "response_example": {
+        "leads_discovered": 123,
+        "sites_crawled": 45,
+        "emails_drafted": 10,
+        "emails_approved": 8,
+        "emails_dispatched": 7,
+        "replies_detected": 2
+      }
+    },
+    {
+      "service": "Django",
+      "method": "GET",
+      "path": "/api/companies/",
+      "description": "List companies; optional campaign filter via ?campaign=<id>.",
+      "response_example": [
+        {
+          "id": 1,
+          "domain": "example.com",
+          "company_name": "Example Ltd",
+          "industry": "SaaS",
+          "ai_score": 82,
+          "ai_score_reasoning": "Strong AI stack and clear use case",
+          "ai_gaps_detected": "No chatbot integration",
+          "ai_recommendations": "Use AI to automate support",
+          "services_offered": "Analytics, CRM",
+          "crawl_status": "done",
+          "do_not_contact": false,
+          "campaign": 2,
+          "created_at": "2026-05-07T12:34:56Z",
+          "updated_at": "2026-05-08T09:20:00Z",
+          "contacts": [
+            {
+              "id": 7,
+              "company": 1,
+              "contact_name": "Jane Doe",
+              "contact_email": "jane@example.com",
+              "contact_phone": "1234567890",
+              "contact_role": "CTO",
+              "linkedin_url": "https://linkedin.com/in/janedoe",
+              "source_page": "https://example.com/team",
+              "created_at": "2026-05-07T12:35:00Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "service": "Django",
+      "method": "GET",
+      "path": "/api/companies/{id}/",
+      "description": "Retrieve one company by ID.",
+      "response_example": {
+        "id": 1,
+        "domain": "example.com",
+        "company_name": "Example Ltd",
+        "industry": "SaaS",
+        "ai_score": 82,
+        "ai_score_reasoning": "Strong AI stack and clear use case",
+        "ai_gaps_detected": "No chatbot integration",
+        "ai_recommendations": "Use AI to automate support",
+        "services_offered": "Analytics, CRM",
+        "crawl_status": "done",
+        "do_not_contact": false,
+        "campaign": 2,
+        "created_at": "2026-05-07T12:34:56Z",
+        "updated_at": "2026-05-08T09:20:00Z",
+        "contacts": []
+      }
+    },
+    {
+      "service": "Django",
+      "method": "GET",
+      "path": "/api/contacts/",
+      "description": "List contact records.",
+      "response_example": [
+        {
+          "id": 7,
+          "company": 1,
+          "contact_name": "Jane Doe",
+          "contact_email": "jane@example.com",
+          "contact_phone": "1234567890",
+          "contact_role": "CTO",
+          "linkedin_url": "https://linkedin.com/in/janedoe",
+          "source_page": "https://example.com/team",
+          "created_at": "2026-05-07T12:35:00Z"
+        }
+      ]
+    },
+    {
+      "service": "Django",
+      "method": "GET",
+      "path": "/api/outreach/",
+      "description": "List outreach records; optional campaign filter via ?campaign=<id>.",
+      "response_example": [
+        {
+          "id": 21,
+          "contact": 7,
+          "company": 1,
+          "campaign": 2,
+          "status": "drafted",
+          "email_subject": "Hello from SalesAuto",
+          "email_body": "Hi, I saw your site and...",
+          "edited_subject": null,
+          "edited_body": null,
+          "sent_at": null,
+          "replied": false,
+          "reply_content": null,
+          "reply_detected_at": null,
+          "follow_up_count": 0,
+          "approved_at": null,
+          "approved_by": null,
+          "sendgrid_message_id": null,
+          "created_at": "2026-05-08T08:30:00Z",
+          "updated_at": "2026-05-08T08:30:00Z",
+          "company_name": "Example Ltd",
+          "company_domain": "example.com",
+          "contact_name": "Jane Doe",
+          "contact_email": "jane@example.com",
+          "contact_role": "CTO",
+          "subject": "Hello from SalesAuto",
+          "body": "Hi, I saw your site and..."
+        }
+      ]
+    },
+    {
+      "service": "Django",
+      "method": "GET",
+      "path": "/api/campaigns/",
+      "description": "List campaigns; active campaigns only.",
+      "response_example": [
+        {
+          "id": 2,
+          "name": "EDTech AI Push",
+          "description": "Campaign for AI education tools",
+          "total_companies_found": 120,
+          "email_extracted": 95,
+          "total_email_send": 40,
+          "total_companies": 80,
+          "created_at": "2026-05-05T14:00:00Z",
+          "updated_at": "2026-05-08T09:00:00Z",
+          "is_active": true,
+          "is_deleted": false
+        }
+      ]
+    },
+    {
+      "service": "Django",
+      "method": "GET",
+      "path": "/api/agent/test/",
+      "description": "Agent service connectivity check.",
+      "response_example": {
+        "status": "ok",
+        "message": "Agent API is accessible"
+      }
+    },
+    {
+      "service": "Django",
+      "method": "POST",
+      "path": "/api/agent/trigger/",
+      "description": "Trigger the pipeline agent.",
+      "request_example": {
+        "keyword": "EdTech India AI"
+      },
+      "response_example": {
+        "message": "Agent pipeline triggered successfully.",
+        "keyword": "EdTech India AI"
+      }
+    },
+    {
+      "service": "Django",
+      "method": "GET",
+      "path": "/api/agent/status/",
+      "description": "Get current pipeline status.",
+      "response_example": {
+        "is_running": true,
+        "current_keyword": "EdTech India AI",
+        "started_at": "2026-05-08T10:15:00Z",
+        "finished_at": null,
+        "last_error": null
+      }
+    },
+    {
+      "service": "Django",
+      "method": "GET",
+      "path": "/api/agent/approvals/",
+      "description": "List drafted outreach items waiting for approval.",
+      "response_example": {
+        "status": "success",
+        "data": [
+          {
+            "id": 21,
+            "company_name": "Example Ltd",
+            "industry": "SaaS",
+            "ai_gaps": "No chatbot integration",
+            "contact_name": "Jane Doe",
+            "contact_email": "jane@example.com",
+            "contact_role": "CTO",
+            "subject": "Hello from SalesAuto",
+            "body": "Hi, I saw your site and...",
+            "created_at": "2026-05-08T08:30:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "service": "FastAPI",
+      "method": "GET",
+      "path": "/",
+      "description": "Email microservice root info endpoint.",
+      "response_example": {
+        "message": "Email Microservice API",
+        "version": "1.0.0",
+        "docs": "http://localhost:8001/docs",
+        "redoc": "http://localhost:8001/redoc",
+        "health": "http://localhost:8001/api/health"
+      }
+    },
+    {
+      "service": "FastAPI",
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Email microservice health check.",
+      "response_example": {
+        "status": "ok",
+        "service": "Email Microservice",
+        "provider": "SMTP"
+      }
+    },
+    {
+      "service": "FastAPI",
+      "method": "POST",
+      "path": "/api/send-email",
+      "description": "Send a single email via SMTP.",
+      "request_example": {
+        "to_email": "recipient@example.com",
+        "subject": "Test Email",
+        "body": "This is a test email"
+      },
+      "response_example": {
+        "message": "Email sent successfully",
+        "result": {
+          "status": "success",
+          "status_code": 200,
+          "message_id": "unknown"
+        }
+      }
+    },
+    {
+      "service": "FastAPI",
+      "method": "POST",
+      "path": "/api/send-bulk",
+      "description": "Send multiple emails in batch.",
+      "request_example": {
+        "emails": [
+          {
+            "to_email": "user1@example.com",
+            "subject": "Test 1",
+            "body": "Body 1"
+          },
+          {
+            "to_email": "user2@example.com",
+            "subject": "Test 2",
+            "body": "Body 2"
+          }
+        ]
+      },
+      "response_example": {
+        "message": "Processed 2 emails.",
+        "results": [
+          {
+            "to": "user1@example.com",
+            "result": {
+              "status": "success",
+              "status_code": 200,
+              "message_id": "unknown"
+            }
+          },
+          {
+            "to": "user2@example.com",
+            "result": {
+              "status": "success",
+              "status_code": 200,
+              "message_id": "unknown"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

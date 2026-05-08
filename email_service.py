@@ -36,10 +36,12 @@ FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USER)
 
 if not SMTP_USER or not SMTP_PASS:
     print(
-        "WARNING: SMTP_USER or SMTP_PASS is not set. Emails will not actually be sent."
+        "WARNING: SMTP_USER or SMTP_PASS is not set. "
+        "Emails will not actually be sent."
     )
 print(
-    f"SMTP Configuration: Host={SMTP_HOST}, Port={SMTP_PORT}, User={SMTP_USER}, From={FROM_EMAIL}"
+    f"SMTP Configuration: Host={SMTP_HOST}, Port={SMTP_PORT}, "
+    f"User={SMTP_USER}, From={FROM_EMAIL}"
 )
 
 
@@ -104,9 +106,17 @@ def root():
 def send_email_via_smtp(to_email: str, subject: str, body: str):
     if not SMTP_USER or not SMTP_PASS:
         print(
-            f"[Mock Send] To: {to_email} | Subject: {subject} | Body: {len(body)} chars"
+            "[Mock Send] To: {to_email} | Subject: {subject} | "
+            "Body: {body_len} chars".format(
+                to_email=to_email,
+                subject=subject,
+                body_len=len(body),
+            )
         )
-        return {"status": "mocked", "message": "SMTP credentials missing, email mocked"}
+        return {
+            "status": "mocked",
+            "message": "SMTP credentials missing, email mocked",
+        }
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
@@ -164,10 +174,17 @@ async def send_email(payload: EmailPayload, background_tasks: BackgroundTasks):
     ```
     """
     try:
-        result = send_email_via_smtp(payload.to_email, payload.subject, payload.body)
+        result = send_email_via_smtp(
+            payload.to_email,
+            payload.subject,
+            payload.body,
+        )
         if result.get("status") == "error":
             raise HTTPException(status_code=500, detail=result["message"])
-        return {"message": "Email sent successfully", "result": result}
+        return {
+            "message": "Email sent successfully",
+            "result": result,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -211,7 +228,10 @@ async def send_bulk_emails(
         res = send_email_via_smtp(email.to_email, email.subject, email.body)
         results.append({"to": email.to_email, "result": res})
 
-    return {"message": f"Processed {len(payload.emails)} emails.", "results": results}
+    return {
+        "message": f"Processed {len(payload.emails)} emails.",
+        "results": results,
+    }
 
 
 @app.get("/api/health", tags=["Status"])
@@ -224,7 +244,11 @@ def health_check():
     - Service name: "Email Microservice"
     - Provider: "SMTP"
     """
-    return {"status": "ok", "service": "Email Microservice", "provider": "SMTP"}
+    return {
+        "status": "ok",
+        "service": "Email Microservice",
+        "provider": "SMTP",
+    }
 
 
 if __name__ == "__main__":
@@ -235,12 +259,12 @@ if __name__ == "__main__":
     print("📧 Email Microservice Starting...")
     print("=" * 60)
     print(f"🎯 Service Port: {port}")
-    print(f"🌐 Host: 0.0.0.0")
+    print("🌐 Host: 0.0.0.0")
     print("\n📚 Documentation URLs:")
     print(f"   • Swagger UI:  http://localhost:{port}/docs")
     print(f"   • ReDoc:       http://localhost:{port}/redoc")
     print(f"   • OpenAPI:     http://localhost:{port}/openapi.json")
-    print(f"\n🔌 API Endpoints:")
+    print("\n🔌 API Endpoints:")
     print(f"   • Root:        http://localhost:{port}/")
     print(f"   • Health:      http://localhost:{port}/api/health")
     print(f"   • Send Email:  POST http://localhost:{port}/api/send-email")

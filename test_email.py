@@ -1,17 +1,16 @@
 import os
 import django
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "sales.sales.settings")  # adjust if needed
+os.environ.setdefault(
+    "DJANGO_SETTINGS_MODULE", "sales.sales.settings"
+)  # adjust if needed
 django.setup()
-
 
 
 TEST_MODE = True
 
 
-
-
-    # existing SMTP logic...
+# existing SMTP logic...
 
 
 """
@@ -20,7 +19,7 @@ test_workflow.py
 Runs full LangGraph workflow safely (emails redirected to test inbox).
 """
 
-from sales.agent.graph import build_pipeline   # adjust import if needed
+from sales.agent.graph import build_pipeline  # adjust import if needed
 
 print("=" * 60)
 print("LANGGRAPH WORKFLOW TEST")
