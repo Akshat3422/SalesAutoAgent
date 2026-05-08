@@ -1244,7 +1244,7 @@ def _collect_page_signals(chunks: List[DataChunkProcess]) -> Dict[str, List[str]
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-class AgentState(TypedDict,total=False):
+class AgentState(TypedDict, total=False):
     keyword: str
     target_domains: List[Dict[str, Any]]
     scraped_urls: List[str]
@@ -1253,10 +1253,9 @@ class AgentState(TypedDict,total=False):
     buyer_contacts: List[Dict[str, Any]]
     approval_requests: int
     send_personalized_emails: bool
-    company_id: Optional[int]          # for personalized flow
+    company_id: Optional[int]  # for personalized flow
     bulk_sent: int
     personalized_sent: int
-
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -2293,7 +2292,6 @@ async def ai_gap_analysis_node(state: AgentState) -> AgentState:
     return state
 
 
-
 async def outreach_node(state: AgentState) -> AgentState:
     logger.info("[Node 3] Starting Outreach Emails Node")
 
@@ -2361,6 +2359,7 @@ async def outreach_node(state: AgentState) -> AgentState:
 
 from asgiref.sync import sync_to_async
 
+
 async def send_to_companies_node(state: AgentState) -> AgentState:
     """
     Generate BULK summarized emails (company-level) and SAVE to Outreach.
@@ -2371,18 +2370,22 @@ async def send_to_companies_node(state: AgentState) -> AgentState:
 
     @sync_to_async(thread_sensitive=False)
     def process():
-        companies = Company.objects.prefetch_related("contacts").filter(
-    do_not_contact=False,
-    contacts__isnull=False,
-).distinct()
+        companies = (
+            Company.objects.prefetch_related("contacts")
+            .filter(
+                do_not_contact=False,
+                contacts__isnull=False,
+            )
+            .distinct()
+        )
 
         created = 0
 
         for company in companies:
 
             contacts = company.contacts.filter(
-    contact_email__isnull=False,
-)
+                contact_email__isnull=False,
+            )
 
             if not contacts.exists():
                 continue
@@ -2416,14 +2419,14 @@ Sales Team
             # ✅ SAVE into Outreach (not send)
             for contact in contacts:
                 obj, created_flag = Outreach.objects.get_or_create(
-                company=company,
-                contact=contact,
-                defaults={
-                    "email_subject": subject,
-                    "email_body": body,
-                    "status": "drafted",
-                },
-            )
+                    company=company,
+                    contact=contact,
+                    defaults={
+                        "email_subject": subject,
+                        "email_body": body,
+                        "status": "drafted",
+                    },
+                )
 
             # Only update if still drafted
             if not created_flag and obj.status == "drafted":
@@ -2440,10 +2443,7 @@ Sales Team
 
     logger.info(f"[Node 4] Created {created_count} outreach records (drafted)")
 
-    return {
-        **state,
-        "approval_requests": created_count
-    }
+    return {**state, "approval_requests": created_count}
 
 
 # NODE 5 — CREATE APPROVAL REQUEST (DUMMY)
@@ -2497,7 +2497,9 @@ async def approve_bulk_emails_node(state: AgentState) -> AgentState:
 
     return state
 
+
 from asgiref.sync import sync_to_async
+
 
 async def send_personalized_email_node(state: AgentState) -> AgentState:
     """
@@ -2536,7 +2538,9 @@ async def send_personalized_email_node(state: AgentState) -> AgentState:
             email = contact.contact_email
 
             if not email:
-                logger.warning(f"[Personalized] Skipping contact {contact.id} (no email)")
+                logger.warning(
+                    f"[Personalized] Skipping contact {contact.id} (no email)"
+                )
                 continue
 
             subject = outreach.final_subject
@@ -2561,7 +2565,9 @@ async def send_personalized_email_node(state: AgentState) -> AgentState:
                     outreach.status = "sent"
                     outreach.sent_at = timezone.now()
                     outreach.sendgrid_message_id = result.get("message_id", "")
-                    outreach.save(update_fields=["status", "sent_at", "sendgrid_message_id"])
+                    outreach.save(
+                        update_fields=["status", "sent_at", "sendgrid_message_id"]
+                    )
 
                 await mark_sent()
                 sent_count += 1
@@ -2584,11 +2590,7 @@ async def send_personalized_email_node(state: AgentState) -> AgentState:
         f"[Personalized] Completed | Sent: {sent_count} | Failed: {failed_count}"
     )
 
-    return {
-        **state,
-        "personalized_sent": sent_count
-    }
-
+    return {**state, "personalized_sent": sent_count}
 
 
 async def send_bulk_generalized_email_node(state: AgentState) -> AgentState:
@@ -2638,6 +2640,7 @@ async def send_bulk_generalized_email_node(state: AgentState) -> AgentState:
             )
 
             if result.get("ok"):
+
                 @sync_to_async(thread_sensitive=False)
                 def mark_sent():
                     from django.utils import timezone
@@ -2645,12 +2648,15 @@ async def send_bulk_generalized_email_node(state: AgentState) -> AgentState:
                     outreach.status = "sent"
                     outreach.sent_at = timezone.now()
                     outreach.sendgrid_message_id = result.get("message_id", "")
-                    outreach.save(update_fields=["status", "sent_at", "sendgrid_message_id"])
+                    outreach.save(
+                        update_fields=["status", "sent_at", "sendgrid_message_id"]
+                    )
 
                 await mark_sent()
                 sent_count += 1
 
             else:
+
                 @sync_to_async(thread_sensitive=False)
                 def mark_failed():
                     outreach.status = "failed"
@@ -2663,19 +2669,16 @@ async def send_bulk_generalized_email_node(state: AgentState) -> AgentState:
             logger.error(f"[Bulk] Exception for outreach {outreach.id}: {e}")
             failed_count += 1
 
-    logger.info(
-        f"[Bulk] Completed | Sent: {sent_count} | Failed: {failed_count}"
-    )
+    logger.info(f"[Bulk] Completed | Sent: {sent_count} | Failed: {failed_count}")
 
-    return {
-        **state,
-        "bulk_sent": sent_count
-    }
+    return {**state, "bulk_sent": sent_count}
+
 
 def should_send_personalized_emails(state: AgentState) -> str:
     if state.get("send_personalized_emails", False):
         return "send_personalized_email"
     return "send_to_companies"
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Pipeline

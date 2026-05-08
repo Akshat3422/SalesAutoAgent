@@ -12,7 +12,10 @@ from sales.agent.graph import call_llm, safe_parse_llm_json
 from sales.agent.prompts import COMBINE_COMPANY_OUTREACH_PROMPT
 
 
-def _combine_company_drafts(company, outreach_rows: List[Outreach]) -> Dict[str, str]:
+def _combine_company_drafts(
+    company,
+    outreach_rows: List[Outreach],
+) -> Dict[str, str]:
     drafts = []
     for idx, outreach in enumerate(outreach_rows, start=1):
         drafts.append(
@@ -20,10 +23,10 @@ def _combine_company_drafts(company, outreach_rows: List[Outreach]) -> Dict[str,
             f"Subject: {outreach.final_subject or ''}\n"
             f"Body:\n{outreach.final_body or ''}"
         )
-    
+
     formatted_drafts = "\n\n".join(
-    [f"Draft {i+1}:\n{d}" for i, d in enumerate(drafts)]
-)
+        [f"Draft {i+1}:\n{d}" for i, d in enumerate(drafts)]
+    )
 
     prompt = COMBINE_COMPANY_OUTREACH_PROMPT.format(
         company_name=company.company_name,
@@ -31,7 +34,13 @@ def _combine_company_drafts(company, outreach_rows: List[Outreach]) -> Dict[str,
         domain=company.domain,
         drafts=formatted_drafts,
     )
-    parsed = safe_parse_llm_json(call_llm(prompt, temperature=0.2), context=f"combine_outreach/{company.id}") or {}
+    parsed = safe_parse_llm_json(
+        call_llm(prompt, temperature=0.2),
+        context=f"combine_outreach/{company.id}",
+    )
+    if not isinstance(parsed, dict):
+        parsed = {}
+
     subject = str(parsed.get("subject") or "").strip()
     body = str(parsed.get("body") or "").strip()
 
@@ -66,16 +75,21 @@ def send_grouped_company_outreach() -> Dict[str, Any]:
         company_sent = 0
         company_failed = 0
         contacts = list(
-            Contact.objects.filter(company_id=company_id, contact_email__isnull=False)
+            Contact.objects.filter(
+                company_id=company_id,
+                contact_email__isnull=False,
+            )
             .exclude(contact_email="")
             .order_by("created_at")
         )
         if not contacts:
-            errors.append({
-                "company_id": company_id,
-                "company_name": company.company_name,
-                "error": "no_contacts_with_email",
-            })
+            errors.append(
+                {
+                    "company_id": company_id,
+                    "company_name": company.company_name,
+                    "error": "no_contacts_with_email",
+                }
+            )
             continue
 
         combined = _combine_company_drafts(company, company_outreach)
@@ -99,7 +113,15 @@ def send_grouped_company_outreach() -> Dict[str, Any]:
                 outreach.status = "approved"
             if outreach.approved_at is None:
                 outreach.approved_at = timezone.now()
-            outreach.save(update_fields=["edited_subject", "edited_body", "status", "approved_at", "updated_at"])
+            outreach.save(
+                update_fields=[
+                    "edited_subject",
+                    "edited_body",
+                    "status",
+                    "approved_at",
+                    "updated_at",
+                ]
+            )
 
             if outreach.status == "sent":
                 continue
@@ -113,7 +135,14 @@ def send_grouped_company_outreach() -> Dict[str, Any]:
                 outreach.status = "sent"
                 outreach.sent_at = timezone.now()
                 outreach.sendgrid_message_id = result.get("message_id")
-                outreach.save(update_fields=["status", "sent_at", "sendgrid_message_id", "updated_at"])
+                outreach.save(
+                    update_fields=[
+                        "status",
+                        "sent_at",
+                        "sendgrid_message_id",
+                        "updated_at",
+                    ]
+                )
                 sent += 1
                 company_sent += 1
             else:
@@ -121,12 +150,14 @@ def send_grouped_company_outreach() -> Dict[str, Any]:
                 outreach.save(update_fields=["status", "updated_at"])
                 failed += 1
                 company_failed += 1
-                errors.append({
-                    "company_id": company_id,
-                    "company_name": company.company_name,
-                    "contact_email": contact.contact_email,
-                    "error": result.get("error", "unknown_error"),
-                })
+                errors.append(
+                    {
+                        "company_id": company_id,
+                        "company_name": company.company_name,
+                        "contact_email": contact.contact_email,
+                        "error": result.get("error", "unknown_error"),
+                    }
+                )
 
         for source_outreach in company_outreach:
             source_outreach.edited_subject = combined["subject"]
@@ -134,9 +165,23 @@ def send_grouped_company_outreach() -> Dict[str, Any]:
             if company_sent > 0 and company_failed == 0:
                 source_outreach.status = "sent"
                 source_outreach.sent_at = timezone.now()
-                source_outreach.save(update_fields=["edited_subject", "edited_body", "status", "sent_at", "updated_at"])
+                source_outreach.save(
+                    update_fields=[
+                        "edited_subject",
+                        "edited_body",
+                        "status",
+                        "sent_at",
+                        "updated_at",
+                    ]
+                )
             else:
-                source_outreach.save(update_fields=["edited_subject", "edited_body", "updated_at"])
+                source_outreach.save(
+                    update_fields=[
+                        "edited_subject",
+                        "edited_body",
+                        "updated_at",
+                    ]
+                )
 
     return {
         "status": "success",

@@ -2,4 +2,4 @@ from django.apps import AppConfig
 
 
 class OutreachConfig(AppConfig):
-    name = 'sales.outreach'
+    name = "sales.outreach"

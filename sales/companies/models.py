@@ -28,6 +28,13 @@ class Company(models.Model):
     crawl_status = models.CharField(
         max_length=20, choices=CRAWL_STATUS_CHOICES, default="pending"
     )
+    campaign = models.ForeignKey(
+        "campaigns.Campaign",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="companies",
+    )
     mongo_doc_id = models.CharField(max_length=255, blank=True, null=True)
     do_not_contact = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)

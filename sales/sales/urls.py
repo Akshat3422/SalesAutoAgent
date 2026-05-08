@@ -8,22 +8,26 @@ from sales.contacts.views import ContactViewSet
 from sales.outreach.views import OutreachViewSet
 from sales.DataSource.views import DataSourceViewSet
 from sales.DataChunk.views import DataChunkProcessViewSet
+from sales.campaigns.views import CampaignViewSet
+
 
 # Root health check
 def health_check(request):
     return JsonResponse({"status": "ok", "message": "SalesAuto API is running"})
 
+
 router = DefaultRouter()
-router.register(r'companies', CompanyViewSet)
-router.register(r'contacts', ContactViewSet)
-router.register(r'outreach', OutreachViewSet)
-router.register(r'datasource', DataSourceViewSet)
-router.register(r'datachunk', DataChunkProcessViewSet)
+router.register(r"companies", CompanyViewSet)
+router.register(r"contacts", ContactViewSet)
+router.register(r"outreach", OutreachViewSet)
+router.register(r"datasource", DataSourceViewSet)
+router.register(r"datachunk", DataChunkProcessViewSet)
+router.register(r"campaigns", CampaignViewSet)
 
 urlpatterns = [
-    path('', health_check, name='health-check'),
-    path('admin/', admin.site.urls),
-    path('api/', include(router.urls)),
-    path('api/dashboard/stats/', dashboard_stats_view, name='dashboard-stats'),
-    path('api/agent/', include('sales.agent.urls')),
+    path("", health_check, name="health-check"),
+    path("admin/", admin.site.urls),
+    path("api/", include(router.urls)),
+    path("api/dashboard/stats/", dashboard_stats_view, name="dashboard-stats"),
+    path("api/agent/", include("sales.agent.urls")),
 ]

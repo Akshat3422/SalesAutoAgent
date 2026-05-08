@@ -9,24 +9,62 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('companies', '0001_initial'),
-        ('contacts', '0001_initial'),
+        ("companies", "0001_initial"),
+        ("contacts", "0001_initial"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Outreach',
+            name="Outreach",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('status', models.CharField(choices=[('drafted', 'Drafted'), ('approved', 'Approved'), ('sent', 'Sent'), ('skipped', 'Skipped'), ('replied', 'Replied')], default='drafted', max_length=20)),
-                ('email_subject', models.CharField(blank=True, max_length=500, null=True)),
-                ('email_body', models.TextField(blank=True, null=True)),
-                ('sent_at', models.DateTimeField(blank=True, null=True)),
-                ('replied', models.BooleanField(default=False)),
-                ('reply_content', models.TextField(blank=True, null=True)),
-                ('follow_up_count', models.IntegerField(default=0)),
-                ('company', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='outreaches', to='companies.company')),
-                ('contact', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='outreaches', to='contacts.contact')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "status",
+                    models.CharField(
+                        choices=[
+                            ("drafted", "Drafted"),
+                            ("approved", "Approved"),
+                            ("sent", "Sent"),
+                            ("skipped", "Skipped"),
+                            ("replied", "Replied"),
+                        ],
+                        default="drafted",
+                        max_length=20,
+                    ),
+                ),
+                (
+                    "email_subject",
+                    models.CharField(blank=True, max_length=500, null=True),
+                ),
+                ("email_body", models.TextField(blank=True, null=True)),
+                ("sent_at", models.DateTimeField(blank=True, null=True)),
+                ("replied", models.BooleanField(default=False)),
+                ("reply_content", models.TextField(blank=True, null=True)),
+                ("follow_up_count", models.IntegerField(default=0)),
+                (
+                    "company",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="outreaches",
+                        to="companies.company",
+                    ),
+                ),
+                (
+                    "contact",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="outreaches",
+                        to="contacts.contact",
+                    ),
+                ),
             ],
         ),
     ]

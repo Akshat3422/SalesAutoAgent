@@ -9,20 +9,44 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('companies', '0001_initial'),
+        ("companies", "0001_initial"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Contact',
+            name="Contact",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('contact_name', models.CharField(blank=True, max_length=255, null=True)),
-                ('contact_email', models.EmailField(max_length=254, unique=True)),
-                ('contact_phone', models.CharField(blank=True, max_length=50, null=True)),
-                ('contact_role', models.CharField(blank=True, max_length=255, null=True)),
-                ('source_page', models.URLField(blank=True, max_length=500, null=True)),
-                ('company', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='contacts', to='companies.company')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "contact_name",
+                    models.CharField(blank=True, max_length=255, null=True),
+                ),
+                ("contact_email", models.EmailField(max_length=254, unique=True)),
+                (
+                    "contact_phone",
+                    models.CharField(blank=True, max_length=50, null=True),
+                ),
+                (
+                    "contact_role",
+                    models.CharField(blank=True, max_length=255, null=True),
+                ),
+                ("source_page", models.URLField(blank=True, max_length=500, null=True)),
+                (
+                    "company",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="contacts",
+                        to="companies.company",
+                    ),
+                ),
             ],
         ),
     ]

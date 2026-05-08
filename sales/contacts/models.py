@@ -2,7 +2,9 @@ from django.db import models
 
 
 class Contact(models.Model):
-    company = models.ForeignKey('companies.Company', on_delete=models.CASCADE, related_name='contacts')
+    company = models.ForeignKey(
+        "companies.Company", on_delete=models.CASCADE, related_name="contacts"
+    )
     contact_name = models.CharField(max_length=255, blank=True, null=True)
     contact_email = models.EmailField(unique=True, blank=True, null=True)
     contact_phone = models.CharField(max_length=50, blank=True, null=True)

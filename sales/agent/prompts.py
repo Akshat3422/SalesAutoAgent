@@ -293,10 +293,10 @@ Structure:
 Return ONLY valid JSON. No extra text.
 
 Output:
-{
+{{
 "subject": "string (3-5 words)",
 "body": "string (use \n for line breaks)"
-}
+}}
 
 """
 
@@ -327,8 +327,8 @@ Instructions:
 Return ONLY valid JSON. No extra text.
 
 Output:
-{
+{{
   "subject": "string",
   "body": "string (use \\n for line breaks)"
-}
+}}
 """
