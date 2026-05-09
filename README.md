@@ -1,4 +1,4 @@
-# SalesAutoAgent
+# Marketing and  Outreach  Tool
 
 SalesAutoAgent is an advanced Agentic Marketing Automation Platform. It leverages AI agents to perform autonomous B2B lead generation, enrichment, website crawling, gap analysis, and personalized outreach dispatching. 
 
