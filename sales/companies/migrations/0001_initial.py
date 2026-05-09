@@ -7,22 +7,44 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='Company',
+            name="Company",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('domain', models.CharField(max_length=255, unique=True)),
-                ('company_name', models.CharField(max_length=255, unique=True)),
-                ('industry', models.CharField(blank=True, max_length=255, null=True)),
-                ('ai_score', models.IntegerField(default=0, help_text='0-100 score')),
-                ('ai_gaps_detected', models.TextField(blank=True, null=True)),
-                ('crawl_status', models.CharField(choices=[('pending', 'Pending'), ('crawling', 'Crawling'), ('done', 'Done'), ('failed', 'Failed')], default='pending', max_length=20)),
-                ('mongo_doc_id', models.CharField(blank=True, max_length=255, null=True)),
-                ('do_not_contact', models.BooleanField(default=False)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("domain", models.CharField(max_length=255, unique=True)),
+                ("company_name", models.CharField(max_length=255, unique=True)),
+                ("industry", models.CharField(blank=True, max_length=255, null=True)),
+                ("ai_score", models.IntegerField(default=0, help_text="0-100 score")),
+                ("ai_gaps_detected", models.TextField(blank=True, null=True)),
+                (
+                    "crawl_status",
+                    models.CharField(
+                        choices=[
+                            ("pending", "Pending"),
+                            ("crawling", "Crawling"),
+                            ("done", "Done"),
+                            ("failed", "Failed"),
+                        ],
+                        default="pending",
+                        max_length=20,
+                    ),
+                ),
+                (
+                    "mongo_doc_id",
+                    models.CharField(blank=True, max_length=255, null=True),
+                ),
+                ("do_not_contact", models.BooleanField(default=False)),
             ],
         ),
     ]

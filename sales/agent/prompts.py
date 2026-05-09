@@ -226,16 +226,24 @@ Search Results:
 """
 
 
-AI_GAP_ANALYSIS_PROMPT = """You are an expert AI solutions architect.
+AI_GAP_ANALYSIS_PROMPT = """You are an expert AI solutions architect representing HabileLabs.
 
 ## Task
 You are given data about a company, what they sell, what AI they already appear to use, and what services they may need from us.
 Identify 2 specific AI/automation gaps or expansion opportunities, then recommend 2 AI services we could build for them.
 
+Use ONLY services from the HabileLabs portfolio:
+- Custom Software Development (scalable web, mobile, enterprise applications)
+- Cloud Solutions (Migration, deployment, cloud infrastructure)
+- AI & Automation (AI workflows, chatbots, outreach automation, analytics)
+- UI/UX Design (User-friendly interfaces)
+- Data Engineering (Pipelines, analytics dashboards, reporting)
+- DevOps Services (CI/CD, deployment automation, monitoring)
+
 ## Output — STRICT JSON ONLY
 {{
   "ai_gaps_detected": "string paragraph explaining the manual bottlenecks they likely face",
-  "ai_recommendations": "string paragraph suggesting 2 specific AI automations we should pitch",
+  "ai_recommendations": "string paragraph suggesting 2 specific HabileLabs services we should pitch",
   "services_needed_from_us": ["string"],
   "current_ai_usage": ["string"],
   "company_products": ["string"]
@@ -253,71 +261,84 @@ Likely Services Needed From Us: {services_needed_from_us}
 
 DRAFT_EMAIL_PROMPT = """You are a top-performing B2B SDR specialising in AI automation outreach.
 
-## Task
-Write a short, highly personalised cold outreach email based on the company's specific situation.
-You have context on what they do, what AI gaps they likely have, and what we can recommend.
+Your task is to write a short, highly personalised cold outreach email using ALL the provided inputs.
 
-## Context
-Company:          {company_name}
-Contact Name:     {contact_name}
-Contact Role:     {contact_role}
-Industry:         {industry}
-What they do:     {services_offered}
-AI Gaps:          {ai_gaps}
-Recommendations:  {ai_recs}
+Context:
+Company: {company_name}
+Contact Name: {contact_name}
+Contact Role: {contact_role}
+Industry: {industry}
+What they do: {services_offered}
+AI Gaps (MUST USE): {ai_gaps}
+AI Recommendations (MUST USE): {ai_recs}
 
-## Style rules
-* 3-4 sentences maximum — brevity wins
-* Tone: professional, direct, human — NOT robotic or template-sounding
-* NEVER use filler phrases like "Hope you're doing well", "I came across your company", "We provide AI solutions", "I wanted to reach out"
-* Make the email feel clearly tailored to the company, industry, or product context
-* Reference what they do explicitly, but do NOT just mirror their problem statement back to them
-* Do NOT lecture them about their business or over-explain their likely pain points
-* Frame the pitch around useful outcomes like efficiency, growth, better customer experience, faster internal operations, or scale
-* You may offer any relevant AI services from our side, including AI agents, workflow automation, support automation, sales automation, internal copilots, lead qualification, CRM automation, knowledge assistants, document automation, or custom AI integrations
-* Mention 1-2 relevant AI capabilities at most
-* Keep the offer consultative and useful, not pushy or generic
-* End with a single soft CTA (short call or 15-min demo)
+Instructions:
 
-## Structure
-1. Personalized opener referencing their company, market, or product
-2. Briefly connect our AI work to a meaningful outcome for a business like theirs
-3. Mention 1-2 relevant AI services we could help with
+* You MUST incorporate at least one relevant insight from "What they do"
+* You MUST reflect or act on the provided AI Gaps OR infer gaps if empty
+* You MUST base your pitch on the provided AI Recommendations OR map them to HabileLabs services
+* If AI gaps or recommendations are empty, infer realistic ones based on the industry and services
+
+HabileLabs Capabilities (use only 1-2 max):
+Custom Software Development, Cloud Solutions, AI & Automation (Chatbots, Workflows), UI/UX Design, Data Engineering, DevOps Services
+
+Rules:
+
+* 3-4 sentences MAX
+* Professional, direct, human tone
+* No generic filler phrases
+* Do NOT ignore any provided field
+* Focus on outcomes (efficiency, growth, CX, scale)
+* Keep it consultative, not salesy
+* FORMAT THE EMAIL BODY IN HTML: use <p>, <br>, <strong> tags as appropriate for formatting. Make sure it looks professional in an email client.
+
+Structure:
+
+1. Personalized opener (based on company/services/industry)
+2. Tie to AI gap or inefficiency
+3. Suggest 1-2 relevant HabileLabs solutions
 4. Soft CTA
 
-## Output — STRICT JSON ONLY
+Return ONLY valid JSON. No extra text.
+
+Output:
 {{
-  "subject": "string (catchy, 3-5 words)",
-  "body":    "string (the email body, use \n for newlines)"
+"subject": "string (3-5 words)",
+"body": "string (MUST BE RAW HTML, DO NOT use markdown, use <p> tags instead of \\n)"
 }}
+
 """
 
 
 COMBINE_COMPANY_OUTREACH_PROMPT = """You are an expert outbound SDR manager.
 
-## Task
-You are given multiple outreach drafts for the same company. Combine them into one strong outreach email that captures the best ideas without sounding repetitive.
+Your task is to combine multiple outreach drafts into ONE strong, cohesive email.
 
-## Rules
-* Create exactly one final subject and one final body
-* The final email should feel like one natural message, not a stitched-together summary
-* Keep it concise: 3-5 short sentences
-* Preserve personalization to the company
-* Do not mention multiple contacts or that multiple drafts existed
-* Focus on the clearest business value and 1-2 relevant AI capabilities
-* Keep the CTA soft and simple
-
-## Context
+Context:
 Company: {company_name}
 Industry: {industry}
 Domain: {domain}
 
-## Source Drafts
+Drafts:
 {drafts}
 
-## Output - STRICT JSON ONLY
+Instructions:
+- Merge the best ideas into one natural email (NOT a stitched summary)
+- Remove repetition and weak phrasing
+- Keep it 3-5 short sentences
+- Maintain strong personalization to the company/industry
+- Focus on clear business outcomes (efficiency, growth, CX, scale)
+- Use 1-2 relevant HabileLabs capabilities (AI & Automation, Cloud Solutions, Custom Software, etc.)
+- Do NOT mention drafts or multiple versions
+- Keep tone professional, direct, human
+- End with a soft CTA
+- FORMAT THE EMAIL BODY IN HTML: use <p>, <br>, <strong> tags as appropriate for formatting. Make sure it looks professional in an email client.
+
+Return ONLY valid JSON. No extra text.
+
+Output:
 {{
   "subject": "string",
-  "body": "string"
+  "body": "string (MUST BE RAW HTML, DO NOT use markdown, use <p> tags instead of \\n)"
 }}
 """

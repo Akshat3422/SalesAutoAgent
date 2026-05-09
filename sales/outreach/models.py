@@ -3,20 +3,39 @@ from django.db import models
 
 class Outreach(models.Model):
     STATUS_CHOICES = [
-        ('drafted', 'Drafted'),
-        ('approved', 'Approved'),
-        ('sent', 'Sent'),
-        ('skipped', 'Skipped'),
-        ('replied', 'Replied'),
-        ('failed', 'Failed'),
+        ("drafted", "Drafted"),
+        ("approved", "Approved"),
+        ("sent", "Sent"),
+        ("skipped", "Skipped"),
+        ("replied", "Replied"),
+        ("failed", "Failed"),
     ]
 
-    contact = models.ForeignKey('contacts.Contact', on_delete=models.CASCADE, related_name='outreaches')
-    company = models.ForeignKey('companies.Company', on_delete=models.CASCADE, related_name='outreaches')
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='drafted')
+    EMAIL_TYPE_CHOICES = [
+        ("personalized", "Personalized"),
+        ("bulk", "Bulk"),
+    ]
+
+    contact = models.ForeignKey(
+        "contacts.Contact", on_delete=models.CASCADE, related_name="outreaches"
+    )
+    company = models.ForeignKey(
+        "companies.Company", on_delete=models.CASCADE, related_name="outreaches"
+    )
+    campaign = models.ForeignKey(
+        "campaigns.Campaign",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="outreaches",
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="drafted")
+    email_type = models.CharField(max_length=20, choices=EMAIL_TYPE_CHOICES, default="personalized")
     email_subject = models.CharField(max_length=500, blank=True, null=True)
     email_body = models.TextField(blank=True, null=True)
-    edited_subject = models.CharField(max_length=500, blank=True, null=True, help_text="Human-edited subject")
+    edited_subject = models.CharField(
+        max_length=500, blank=True, null=True, help_text="Human-edited subject"
+    )
     edited_body = models.TextField(blank=True, null=True, help_text="Human-edited body")
     sent_at = models.DateTimeField(blank=True, null=True)
     replied = models.BooleanField(default=False)
@@ -32,7 +51,9 @@ class Outreach(models.Model):
     class Meta:
         verbose_name_plural = "outreach records"
         constraints = [
-            models.UniqueConstraint(fields=["company", "contact"], name="uniq_outreach_company_contact")
+            models.UniqueConstraint(
+                fields=["company", "contact"], name="uniq_outreach_company_contact"
+            )
         ]
 
     def __str__(self):
