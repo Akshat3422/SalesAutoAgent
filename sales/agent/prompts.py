@@ -226,16 +226,24 @@ Search Results:
 """
 
 
-AI_GAP_ANALYSIS_PROMPT = """You are an expert AI solutions architect.
+AI_GAP_ANALYSIS_PROMPT = """You are an expert AI solutions architect representing HabileLabs.
 
 ## Task
 You are given data about a company, what they sell, what AI they already appear to use, and what services they may need from us.
 Identify 2 specific AI/automation gaps or expansion opportunities, then recommend 2 AI services we could build for them.
 
+Use ONLY services from the HabileLabs portfolio:
+- Custom Software Development (scalable web, mobile, enterprise applications)
+- Cloud Solutions (Migration, deployment, cloud infrastructure)
+- AI & Automation (AI workflows, chatbots, outreach automation, analytics)
+- UI/UX Design (User-friendly interfaces)
+- Data Engineering (Pipelines, analytics dashboards, reporting)
+- DevOps Services (CI/CD, deployment automation, monitoring)
+
 ## Output — STRICT JSON ONLY
 {{
   "ai_gaps_detected": "string paragraph explaining the manual bottlenecks they likely face",
-  "ai_recommendations": "string paragraph suggesting 2 specific AI automations we should pitch",
+  "ai_recommendations": "string paragraph suggesting 2 specific HabileLabs services we should pitch",
   "services_needed_from_us": ["string"],
   "current_ai_usage": ["string"],
   "company_products": ["string"]
@@ -272,7 +280,7 @@ Instructions:
 * If AI gaps or recommendations are empty, infer realistic ones based on the industry and services
 
 HabileLabs Capabilities (use only 1-2 max):
-AI Consulting, Data Analytics, NLP, Conversational AI, Workflow Automation, Machine Learning, AI Agents, CRM/Sales Automation, Document Automation, Cloud/API integrations
+Custom Software Development, Cloud Solutions, AI & Automation (Chatbots, Workflows), UI/UX Design, Data Engineering, DevOps Services
 
 Rules:
 
@@ -282,12 +290,13 @@ Rules:
 * Do NOT ignore any provided field
 * Focus on outcomes (efficiency, growth, CX, scale)
 * Keep it consultative, not salesy
+* FORMAT THE EMAIL BODY IN HTML: use <p>, <br>, <strong> tags as appropriate for formatting. Make sure it looks professional in an email client.
 
 Structure:
 
 1. Personalized opener (based on company/services/industry)
 2. Tie to AI gap or inefficiency
-3. Suggest 1-2 relevant AI solutions (from recommendations or inferred)
+3. Suggest 1-2 relevant HabileLabs solutions
 4. Soft CTA
 
 Return ONLY valid JSON. No extra text.
@@ -295,7 +304,7 @@ Return ONLY valid JSON. No extra text.
 Output:
 {{
 "subject": "string (3-5 words)",
-"body": "string (use \n for line breaks)"
+"body": "string (MUST BE RAW HTML, DO NOT use markdown, use <p> tags instead of \\n)"
 }}
 
 """
@@ -319,16 +328,17 @@ Instructions:
 - Keep it 3-5 short sentences
 - Maintain strong personalization to the company/industry
 - Focus on clear business outcomes (efficiency, growth, CX, scale)
-- Use 1-2 relevant AI capabilities (AI agents, automation, NLP, ML, CRM automation, etc.)
+- Use 1-2 relevant HabileLabs capabilities (AI & Automation, Cloud Solutions, Custom Software, etc.)
 - Do NOT mention drafts or multiple versions
 - Keep tone professional, direct, human
 - End with a soft CTA
+- FORMAT THE EMAIL BODY IN HTML: use <p>, <br>, <strong> tags as appropriate for formatting. Make sure it looks professional in an email client.
 
 Return ONLY valid JSON. No extra text.
 
 Output:
 {{
   "subject": "string",
-  "body": "string (use \\n for line breaks)"
+  "body": "string (MUST BE RAW HTML, DO NOT use markdown, use <p> tags instead of \\n)"
 }}
 """

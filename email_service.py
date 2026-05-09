@@ -2,6 +2,7 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
@@ -134,6 +135,23 @@ def send_email_via_smtp(to_email: str, subject: str, body: str):
     html_content = body.replace("\n", "<br>")
     part = MIMEText(html_content, "html")
     msg.attach(part)
+
+    # Attach PDF
+    pdf_path = os.path.join(os.path.dirname(__file__), "HabileLabs_Services.pdf")
+    if os.path.exists(pdf_path):
+        try:
+            with open(pdf_path, "rb") as f:
+                pdf_attachment = MIMEApplication(f.read(), _subtype="pdf")
+                pdf_attachment.add_header(
+                    "Content-Disposition",
+                    "attachment",
+                    filename="HabileLabs_Services.pdf",
+                )
+                msg.attach(pdf_attachment)
+        except Exception as e:
+            print(f"Failed to attach PDF: {e}")
+    else:
+        print(f"Warning: PDF attachment not found at {pdf_path}")
 
     try:
         with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as server:

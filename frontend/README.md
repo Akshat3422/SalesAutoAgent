@@ -1,159 +1,73 @@
-# SalesAuto Frontend
+# React + TypeScript + Vite
 
-Modern, lightweight frontend for SalesAuto - AI-Powered Lead Research & Outreach Platform
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-## Project Structure
+Currently, two official plugins are available:
 
-```
-frontend/
-├── server.js              # Express.js server
-├── package.json           # Node dependencies
-├── .env                   # Environment config
-├── public/
-│   ├── index.html        # Main HTML file
-│   ├── css/
-│   │   └── style.css     # Light & modern styling
-│   └── js/
-│       └── app.js        # Main app logic & API calls
-└── README.md             # This file
-```
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
-## Features
+## React Compiler
 
-- ✅ **Modern UI** - Light colors, clean design
-- ✅ **Responsive** - Works on desktop, tablet, mobile
-- ✅ **Dynamic Tabs** - Research, Dashboard, Approvals, Email
-- ✅ **Real-time Status** - Live pipeline polling
-- ✅ **Full API Integration** - All backend APIs integrated
-- ✅ **Email Testing** - Test email microservice
-- ✅ **Dark/Light** - Easy theme switching
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-## Installation
+## Expanding the ESLint configuration
 
-### Prerequisites
-- Node.js 14+ 
-- npm or yarn
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
 
-### Setup
+```js
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
 
-1. Navigate to frontend directory:
-```bash
-cd frontend
-```
+      // Remove tseslint.configs.recommended and replace with this
+      tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      tseslint.configs.stylisticTypeChecked,
 
-2. Install dependencies:
-```bash
-npm install
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
 ```
 
-3. Configure environment (.env already set):
-```env
-FRONTEND_PORT=3000
-BACKEND_URL=http://localhost:8000
-EMAIL_SERVICE_URL=http://localhost:8001
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
+
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
 ```
-
-## Running the Frontend
-
-```bash
-npm start
-```
-
-The frontend will be available at: **http://localhost:3000**
-
-## Available Tabs
-
-### 🔍 Research
-- Trigger AI pipeline with custom keyword
-- Watch real-time pipeline status
-- View activity logs
-
-### 📊 Dashboard
-- See metrics (leads, sites crawled, emails sent, replies)
-- View discovered companies
-- Track crawl status
-
-### ✉️ Approvals
-- Review drafted emails
-- Approve or skip emails
-- Send approved outreach
-
-### 📧 Email
-- Test email microservice
-- Send emails directly from UI
-- View response status
-
-## API Configuration
-
-The frontend automatically connects to:
-- **Backend**: http://localhost:8000 (Django API)
-- **Email Service**: http://localhost:8001 (FastAPI Email Microservice)
-
-Modify `.env` to change these addresses.
-
-## Development
-
-### File Structure
-- `server.js` - Express server & routing
-- `public/index.html` - Main HTML (single page app)
-- `public/css/style.css` - All styling (light theme)
-- `public/js/app.js` - All JavaScript logic
-
-### Key Functions
-- `triggerPipeline()` - Start research
-- `startPolling()` - Poll pipeline status
-- `fetchStats()` - Get dashboard metrics
-- `fetchCompanies()` - Get discovered companies
-- `fetchApprovals()` - Get pending approvals
-- `sendTestEmail()` - Send test email
-
-## Styling
-
-Uses custom CSS variables for theming:
-```css
---primary: #2563eb          /* Blue *)
---secondary: #7c3aed        /* Purple */
---success: #16a34a          /* Green */
---danger: #dc2626           /* Red */
-```
-
-All light & modern with professional appearance.
-
-## Troubleshooting
-
-**Cannot connect to backend?**
-- Make sure Django is running on port 8000
-- Check `BACKEND_URL` in `.env`
-- Check browser console for CORS errors
-
-**Email not sending?**
-- Verify Email Microservice is running on port 8001
-- Check `.env` in SalesAuto root for SMTP credentials
-- Check Email Service docs at http://localhost:8001/docs
-
-**Styling issues?**
-- Clear browser cache (Ctrl+Shift+Delete)
-- Check browser console for CSS errors
-- Verify `style.css` is loaded
-
-## Browser Support
-
-- Chrome/Chromium 90+
-- Firefox 88+
-- Safari 14+
-- Edge 90+
-
-## License
-
-MIT
-
-## Support
-
-For issues, check:
-1. Backend logs: `sales/agent/agent_execution.log`
-2. Browser console (F12)
-3. Network tab to see API responses
-
----
-
-**SalesAuto Frontend** | Built with Express.js, Vanilla JS, & Modern CSS

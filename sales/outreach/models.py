@@ -11,6 +11,11 @@ class Outreach(models.Model):
         ("failed", "Failed"),
     ]
 
+    EMAIL_TYPE_CHOICES = [
+        ("personalized", "Personalized"),
+        ("bulk", "Bulk"),
+    ]
+
     contact = models.ForeignKey(
         "contacts.Contact", on_delete=models.CASCADE, related_name="outreaches"
     )
@@ -25,6 +30,7 @@ class Outreach(models.Model):
         related_name="outreaches",
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="drafted")
+    email_type = models.CharField(max_length=20, choices=EMAIL_TYPE_CHOICES, default="personalized")
     email_subject = models.CharField(max_length=500, blank=True, null=True)
     email_body = models.TextField(blank=True, null=True)
     edited_subject = models.CharField(

@@ -1256,6 +1256,7 @@ class AgentState(TypedDict, total=False):
     company_id: Optional[int]  # for personalized flow
     bulk_sent: int
     personalized_sent: int
+    campaign_id: Optional[int]  # links pipeline run to a Campaign record
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1333,7 +1334,8 @@ def _regex_extract_domains(text: str) -> List[str]:
 
 async def research_node(state: AgentState) -> AgentState:
     keyword = state["keyword"]
-    logger.info(f"[Node 1] Researching keyword: {keyword}")
+    campaign_id = state.get("campaign_id", None)
+    logger.info(f"[Node 1] Researching keyword: {keyword} | campaign_id={campaign_id}")
 
     queries = [
         keyword,
@@ -1432,6 +1434,8 @@ async def research_node(state: AgentState) -> AgentState:
             company.ai_score = ai_score
             company.ai_score_reasoning = ai_reasoning
             company.crawl_status = "pending"
+            if campaign_id:
+                company.campaign_id = campaign_id
             company.save()
             ds, _ = DataSource.objects.get_or_create(
                 domain=domain,
@@ -2383,11 +2387,9 @@ async def send_to_companies_node(state: AgentState) -> AgentState:
 
         for company in companies:
 
-            contacts = company.contacts.filter(
-                contact_email__isnull=False,
-            )
-
-            if not contacts.exists():
+            # Only pick the primary valid contact (the first one)
+            contact = company.contacts.filter(contact_email__isnull=False).first()
+            if not contact:
                 continue
 
             # 🔥 SUMMARIZATION (your original logic)
@@ -2416,23 +2418,26 @@ Best regards,
 Sales Team
 """
 
-            # ✅ SAVE into Outreach (not send)
-            for contact in contacts:
-                obj, created_flag = Outreach.objects.get_or_create(
-                    company=company,
-                    contact=contact,
-                    defaults={
-                        "email_subject": subject,
-                        "email_body": body,
-                        "status": "drafted",
-                    },
-                )
+            # ✅ SAVE into Outreach (not send) as BULK
+            obj, created_flag = Outreach.objects.get_or_create(
+                company=company,
+                contact=contact,
+                defaults={
+                    "email_subject": subject,
+                    "email_body": body,
+                    "status": "drafted",
+                    "email_type": "bulk",
+                    "campaign_id": state.get("campaign_id")
+                },
+            )
 
             # Only update if still drafted
             if not created_flag and obj.status == "drafted":
                 obj.email_subject = subject
                 obj.email_body = body
-                obj.save(update_fields=["email_subject", "email_body"])
+                obj.email_type = "bulk"
+                obj.campaign_id = state.get("campaign_id")
+                obj.save(update_fields=["email_subject", "email_body", "email_type", "campaign_id"])
 
                 if created_flag:
                     created += 1
@@ -2713,28 +2718,14 @@ def build_pipeline():
     workflow.add_edge("ai_gap_analysis", "outreach")
 
     # 🔥 CORRECT BRANCHING
-    workflow.add_conditional_edges(
-        "outreach",
-        should_send_personalized_emails,
-        {
-            "send_personalized_email": "send_personalized_email",
-            "send_to_companies": "send_to_companies",
-        },
-    )
-
-    # BULK FLOW
-    workflow.add_edge("send_to_companies", "create_approval_request")
-    workflow.add_edge("create_approval_request", "approve_bulk_emails")
-    workflow.add_edge("approve_bulk_emails", "send_bulk_generalized_email")
-    workflow.add_edge("send_bulk_generalized_email", END)
-
-    # PERSONALIZED FLOW
-    workflow.add_edge("send_personalized_email", END)
+    # SEQUENTIAL FLOW: Personalized -> Bulk Summary -> End
+    workflow.add_edge("outreach", "send_to_companies")
+    workflow.add_edge("send_to_companies", END)
 
     return workflow.compile()
 
 
-async def execute_pipeline(keyword: str):
+async def execute_pipeline(keyword: str, campaign_id: Optional[int] = None):
     import django
 
     if not django.apps.apps.ready:
@@ -2750,10 +2741,11 @@ async def execute_pipeline(keyword: str):
         "buyer_contacts": [],
         "approval_requests": 0,
         "send_personalized_emails": True,  # Set to True to enable personalized emails, False to skip
+        "campaign_id": campaign_id,
     }
 
     logger.info("====================================")
-    logger.info(f"STARTING PIPELINE for keyword: {keyword}")
+    logger.info(f"STARTING PIPELINE for keyword: {keyword} | campaign_id={campaign_id}")
 
     try:
         async for output in app.astream(initial_state):

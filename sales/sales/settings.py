@@ -53,7 +53,9 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     # Third party
     "rest_framework",
+    "rest_framework.authtoken",
     "corsheaders",
+    
     # Local apps
     "sales.companies",
     "sales.contacts",
@@ -146,6 +148,16 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.TokenAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.AllowAny",
+    ],
+}
+
 CORS_ALLOW_ALL_ORIGINS = (
     os.environ.get("CORS_ALLOW_ALL_ORIGINS", "true").lower() == "true"
 )
@@ -170,6 +182,7 @@ CORS_ALLOWED_HEADERS = [
     "user-agent",
     "x-csrftoken",
     "x-requested-with",
+    # "ngrok-skip-browser-warning",
 ]
 CORS_ALLOW_METHODS = [
     "DELETE",

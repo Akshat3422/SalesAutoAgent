@@ -10,6 +10,9 @@ from .views import (
     send_approved_outreach_view,
     send_grouped_company_outreach_view,
     bulk_approve_company_view,
+    send_bulk_outreach_view,
+    edit_outreach_view,
+    bulk_queue_view,
 )
 
 
@@ -45,8 +48,23 @@ urlpatterns = [
         name="send-grouped-company-outreach",
     ),
     path(
+        "approvals/<int:outreach_id>/edit/",
+        edit_outreach_view,
+        name="edit-outreach",
+    ),
+    path(
         "companies/<int:company_id>/bulk-send/",
         bulk_approve_company_view,
         name="bulk-approve-company",
+    ),
+    path(
+        "send-bulk/",
+        send_bulk_outreach_view,
+        name="send-bulk-outreach",
+    ),
+    path(
+        "bulk-queue/",
+        bulk_queue_view,
+        name="bulk-queue",
     ),
 ]
