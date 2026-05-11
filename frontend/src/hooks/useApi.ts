@@ -28,8 +28,9 @@ export function usePipelineStatus() {
   });
 
   const statsQuery = useQuery({
-    queryKey: ['dashboardStats'],
-    queryFn: api.getDashboardStats,
+    queryKey: ['campaignStats', query.data?.campaign_id],
+    queryFn: () => api.getCampaignStats(query.data!.campaign_id!),
+    enabled: !!query.data?.campaign_id,
     refetchInterval: 4000,
   });
 
@@ -67,12 +68,12 @@ export function usePipelineStatus() {
     if (is_running && statsQuery.data) {
       const stats = statsQuery.data;
 
-      if (stats.leads_discovered > 0 && prevCompanyCount.current === 0) {
+      if (stats.total_companies > 0 && prevCompanyCount.current === 0) {
         advanceWorkflow('research');
-        addLog({ step: 'discover_buyer_contacts', message: `${stats.leads_discovered} companies identified, discovering buyer contacts...`, type: 'info' });
+        addLog({ step: 'discover_buyer_contacts', message: `${stats.total_companies} companies identified, discovering buyer contacts...`, type: 'info' });
       }
 
-      if (stats.sites_crawled > prevCompanyCount.current && stats.sites_crawled > 0) {
+      if (stats.crawled_companies > prevCompanyCount.current && stats.crawled_companies > 0) {
         if (prevCompanyCount.current === 0) {
           advanceWorkflow('discover_buyer_contacts');
           addLog({ step: 'scrape', message: 'Scraping company intelligence...', type: 'info' });
@@ -87,7 +88,7 @@ export function usePipelineStatus() {
         addLog({ step: 'outreach', message: `${stats.emails_drafted} emails drafted`, type: 'info' });
       }
 
-      prevCompanyCount.current = stats.leads_discovered;
+      prevCompanyCount.current = stats.total_companies;
       prevContactCount.current = stats.emails_drafted;
     }
 
@@ -125,40 +126,40 @@ export function useCompanies(campaignId?: number) {
 }
 
 /* ── Contacts ── */
-export function useContacts() {
+export function useContacts(campaignId?: number) {
   return useQuery({
-    queryKey: ['contacts'],
-    queryFn: api.getContacts,
+    queryKey: ['contacts', campaignId],
+    queryFn: () => api.getContacts(campaignId),
     refetchInterval: 8000,
   });
 }
 
 /* ── Outreach ── */
-export function useOutreach() {
+export function useOutreach(campaignId?: number) {
   return useQuery({
-    queryKey: ['outreach'],
-    queryFn: api.getOutreach,
+    queryKey: ['outreach', campaignId],
+    queryFn: () => api.getOutreach(campaignId),
     refetchInterval: 6000,
   });
 }
 
 /* ── Approvals ── */
-export function useApprovals() {
+export function useApprovals(campaignId?: number) {
   return useQuery({
-    queryKey: ['approvals'],
+    queryKey: ['approvals', campaignId],
     queryFn: async () => {
-      const data = await api.getApprovals();
+      const data = await api.getApprovals(campaignId);
       return data.data || [];
     },
     refetchInterval: 6000,
   });
 }
 
-export function useGroupedOutreach() {
+export function useGroupedOutreach(campaignId?: number) {
   return useQuery({
-    queryKey: ['groupedOutreach'],
+    queryKey: ['groupedOutreach', campaignId],
     queryFn: async () => {
-      const data = await api.getGroupedCompanyOutreach();
+      const data = await api.getGroupedCompanyOutreach(campaignId);
       return data.data || [];
     },
     refetchInterval: 6000,
@@ -168,7 +169,10 @@ export function useGroupedOutreach() {
 export function useBulkQueue(campaignId?: number) {
   return useQuery({
     queryKey: ['bulkQueue', campaignId],
-    queryFn: () => getBulkQueue(campaignId),
+    queryFn: async () => {
+      const data = await api.getBulkQueue(campaignId);
+      return data.data || [];
+    },
     enabled: !!campaignId,
   });
 }
@@ -224,6 +228,7 @@ export function useApproveOutreach() {
       queryClient.invalidateQueries({ queryKey: ['approvals'] });
       queryClient.invalidateQueries({ queryKey: ['groupedOutreach'] });
       queryClient.invalidateQueries({ queryKey: ['outreach'] });
+      queryClient.invalidateQueries({ queryKey: ['bulkQueue'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
     },
   });
@@ -239,6 +244,7 @@ export function useEditOutreach() {
     onSuccess: () => {
       addLog({ step: 'outreach', message: 'Email draft saved successfully', type: 'success' });
       queryClient.invalidateQueries({ queryKey: ['approvals'] });
+      queryClient.invalidateQueries({ queryKey: ['bulkQueue'] });
       queryClient.invalidateQueries({ queryKey: ['groupedOutreach'] });
     },
   });
@@ -254,6 +260,8 @@ export function useSkipOutreach() {
       addLog({ step: 'outreach', message: 'Email skipped', type: 'warning' });
       queryClient.invalidateQueries({ queryKey: ['approvals'] });
       queryClient.invalidateQueries({ queryKey: ['outreach'] });
+      queryClient.invalidateQueries({ queryKey: ['bulkQueue'] });
+      queryClient.invalidateQueries({ queryKey: ['groupedOutreach'] });
     },
   });
 }

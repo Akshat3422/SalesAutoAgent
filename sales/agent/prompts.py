@@ -230,7 +230,10 @@ AI_GAP_ANALYSIS_PROMPT = """You are an expert AI solutions architect representin
 
 ## Task
 You are given data about a company, what they sell, what AI they already appear to use, and what services they may need from us.
+Additionally, you are provided with a Strategy Context which outlines the core service offering, business pain points, and operational workflows we are targeting.
+
 Identify 2 specific AI/automation gaps or expansion opportunities, then recommend 2 AI services we could build for them.
+You MUST recommend HabileLabs as the provider for these services, framing HabileLabs as the expert that provides exactly what the Strategy Context defines.
 
 Use ONLY services from the HabileLabs portfolio:
 - Custom Software Development (scalable web, mobile, enterprise applications)
@@ -256,6 +259,7 @@ Services Offered: {services_offered}
 Products: {company_products}
 Current AI Usage: {current_ai_usage}
 Likely Services Needed From Us: {services_needed_from_us}
+Strategy Context (Our Core Service to Sell): {strategy_context}
 """
 
 
@@ -341,4 +345,31 @@ Output:
   "subject": "string",
   "body": "string (MUST BE RAW HTML, DO NOT use markdown, use <p> tags instead of \\n)"
 }}
+"""
+
+STRATEGY_GENERATION_PROMPT = """You are a B2B sales strategist and GTM consultant.
+
+## Task
+Based on the user's input, generate a comprehensive opportunity discovery strategy.
+Infer operational pain points and generate highly specific search queries to discover companies likely to need this service.
+DO NOT generate generic keyword searches. Think operationally.
+
+## Output — STRICT JSON ONLY
+{{
+  "service_understanding": {{
+    "service_category": "string",
+    "business_pain_points": ["string"]
+  }},
+  "search_intelligence": {{
+    "search_queries": ["string"]
+  }}
+}}
+
+## Rules for Search Queries
+- Generate EXACTLY 5 high-quality, operational search queries.
+- Good example: "insurance claims processing companies"
+- Bad example: "AI automation customers"
+
+## Input
+User Query: {user_query}
 """

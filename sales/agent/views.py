@@ -177,9 +177,13 @@ def approval_queue_view(request):
     GET: List all drafted emails waiting for approval.
     """
     if request.method == "GET":
+        campaign_id = request.GET.get("campaign_id")
         drafts = Outreach.objects.filter(status="drafted", email_type="personalized").select_related(
             "contact", "company"
         )
+        if campaign_id:
+            drafts = drafts.filter(campaign_id=campaign_id)
+            
         data = []
         for d in drafts:
             data.append(
@@ -246,11 +250,12 @@ def grouped_company_outreach_view(request):
     if request.method != "GET":
         return JsonResponse({"error": "Only GET allowed"}, status=405)
 
-    approved_rows = list(
-        Outreach.objects.filter(status="approved")
-        .select_related("company", "contact")
-        .order_by("company_id", "created_at")
-    )
+    campaign_id = request.GET.get("campaign_id")
+    qs = Outreach.objects.filter(status="approved").select_related("company", "contact")
+    if campaign_id:
+        qs = qs.filter(campaign_id=campaign_id)
+        
+    approved_rows = list(qs.order_by("company_id", "created_at"))
     grouped = defaultdict(list)
     for outreach in approved_rows:
         grouped[outreach.company_id].append(outreach)
@@ -334,11 +339,16 @@ def approve_outreach_view(request, outreach_id):
         # Send email via email_service microservice
         def send_email_async():
             try:
+                from sales.agent.email_sender import TEST_MODE, TEST_EMAIL
+                to_email = TEST_EMAIL if TEST_MODE else outreach.contact.contact_email
+                if TEST_MODE:
+                    print(f"[TEST MODE] Redirecting email to {TEST_EMAIL}")
+                    
                 email_service_url = "http://localhost:8001"
                 response = requests.post(
                     f"{email_service_url}/api/send-email",
                     json={
-                        "to_email": outreach.contact.contact_email,
+                        "to_email": to_email,
                         "subject": subject,
                         "body": body,
                         "contact_name": outreach.contact.contact_name,
@@ -536,10 +546,15 @@ def send_bulk_outreach_view(request):
 
         for outreach in drafted_emails:
             try:
+                from sales.agent.email_sender import TEST_MODE, TEST_EMAIL
+                to_email = TEST_EMAIL if TEST_MODE else outreach.contact.contact_email
+                if TEST_MODE:
+                    print(f"[TEST MODE] Redirecting email to {TEST_EMAIL}")
+                    
                 response = requests.post(
                     f"{email_service_url}/api/send-email",
                     json={
-                        "to_email": outreach.contact.contact_email,
+                        "to_email": to_email,
                         "subject": outreach.edited_subject or outreach.email_subject,
                         "body": outreach.edited_body or outreach.email_body,
                         "contact_name": outreach.contact.contact_name,
@@ -576,12 +591,12 @@ def send_bulk_outreach_view(request):
                 )
 
     # Send in background thread
-    thread = threading.Thread(target=send_bulk_async, daemon=True)
+    thread = threading.Thread(target=process_and_send, daemon=True)
     thread.start()
 
     return JsonResponse(
         {
             "status": "success",
-            "message": f"Bulk sending {len(list(approved_emails))} approved emails started.",
+            "message": f"Bulk sending {drafted_emails.count()} approved emails started.",
         }
     )
