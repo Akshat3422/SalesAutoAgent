@@ -1,4 +1,5 @@
 import { useCompanies } from '../hooks/useApi';
+import { useCampaignStore } from '../store/campaignStore';
 import { Brain, AlertTriangle, Lightbulb, Target, Zap } from 'lucide-react';
 
 function parseTextToList(text: string | null): string[] {
@@ -118,7 +119,8 @@ function GapCard({ companyName, aiScore, gaps, recommendations, services, reason
 }
 
 export default function AIAnalysisTab() {
-  const { data: companies, isLoading } = useCompanies();
+  const { activeCampaignId } = useCampaignStore();
+  const { data: companies, isLoading } = useCompanies(activeCampaignId || undefined);
 
   if (isLoading) {
     return (

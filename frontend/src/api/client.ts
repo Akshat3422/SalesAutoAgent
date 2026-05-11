@@ -129,27 +129,39 @@ export async function getCompanies(campaignId?: number) {
 
 /* ── Contacts ── */
 
-export async function getContacts() {
-  const res = await fetch(`${API_BASE}/contacts/`, { headers: getHeaders() });
+export async function getContacts(campaignId?: number) {
+  const url = campaignId 
+    ? `${API_BASE}/contacts/?campaign=${campaignId}`
+    : `${API_BASE}/contacts/`;
+  const res = await fetch(url, { headers: getHeaders() });
   return handleResponse<any[]>(res);
 }
 
 /* ── Outreach ── */
 
-export async function getOutreach() {
-  const res = await fetch(`${API_BASE}/outreach/`, { headers: getHeaders() });
+export async function getOutreach(campaignId?: number) {
+  const url = campaignId 
+    ? `${API_BASE}/outreach/?campaign=${campaignId}`
+    : `${API_BASE}/outreach/`;
+  const res = await fetch(url, { headers: getHeaders() });
   return handleResponse<any[]>(res);
 }
 
 /* ── Approvals ── */
 
-export async function getApprovals() {
-  const res = await fetch(`${API_BASE}/agent/approvals/`, { headers: getHeaders() });
+export async function getApprovals(campaignId?: number) {
+  const url = campaignId 
+    ? `${API_BASE}/agent/approvals/?campaign_id=${campaignId}`
+    : `${API_BASE}/agent/approvals/`;
+  const res = await fetch(url, { headers: getHeaders() });
   return handleResponse<{ status: string; data: any[] }>(res);
 }
 
-export async function getGroupedCompanyOutreach() {
-  const res = await fetch(`${API_BASE}/agent/approvals/grouped-company/`, { headers: getHeaders() });
+export async function getGroupedCompanyOutreach(campaignId?: number) {
+  const url = campaignId 
+    ? `${API_BASE}/agent/approvals/grouped-company/?campaign_id=${campaignId}`
+    : `${API_BASE}/agent/approvals/grouped-company/`;
+  const res = await fetch(url, { headers: getHeaders() });
   return handleResponse<{ status: string; data: any[] }>(res);
 }
 

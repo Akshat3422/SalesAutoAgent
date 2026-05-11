@@ -97,6 +97,7 @@ from sales.agent.prompts import (
     AI_SCORE_PROMPT,
     AI_GAP_ANALYSIS_PROMPT,
     DISCOVER_BUYER_CONTACTS_PROMPT,
+    STRATEGY_GENERATION_PROMPT,
 )
 from sales.agent.email_sender import send_email_payload
 
@@ -1065,7 +1066,7 @@ async def _search_with_fallback(query: str, context: str) -> Optional[str]:
             def _tavily_search():
                 client = TavilyClient(api_key=tavily_key)
                 response = client.search(
-                    query=query, max_results=5, include_answer=True
+                    query=query, max_results=10, include_answer=True, country="india"
                 )
                 results = response.get("results", [])
                 if results:
@@ -1246,6 +1247,9 @@ def _collect_page_signals(chunks: List[DataChunkProcess]) -> Dict[str, List[str]
 
 class AgentState(TypedDict, total=False):
     keyword: str
+    user_query: str  # For strategy generation
+    strategy: Dict[str, Any]
+    search_queries: List[str]
     target_domains: List[Dict[str, Any]]
     scraped_urls: List[str]
     emails: List[str]
@@ -1328,6 +1332,39 @@ def _regex_extract_domains(text: str) -> List[str]:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# NODE 0 — STRATEGY GENERATION
+# ──────────────────────────────────────────────────────────────────────────────
+
+async def strategy_generation_node(state: AgentState) -> AgentState:
+    user_query = state.get("user_query") or state.get("keyword")
+    logger.info(f"[Node 0] Generating strategy for query: {user_query}")
+    
+    if not user_query:
+        state["strategy"] = {}
+        state["search_queries"] = [state.get("keyword", "")]
+        return state
+
+    prompt = STRATEGY_GENERATION_PROMPT.format(user_query=user_query)
+    raw_response = await sync_to_async(call_llm)(prompt, temperature=0.3)
+    parsed = safe_parse_llm_json(raw_response, context="strategy_generation")
+    
+    if parsed and isinstance(parsed, dict):
+        state["strategy"] = parsed
+        queries = parsed.get("search_intelligence", {}).get("search_queries", [])
+        if queries:
+            state["search_queries"] = queries[:3] # Limit to top 3 for batching
+            # Override keyword with the first query just in case legacy nodes need it
+            state["keyword"] = queries[0] 
+        else:
+            state["search_queries"] = [user_query]
+    else:
+        state["strategy"] = {}
+        state["search_queries"] = [user_query]
+
+    return state
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # NODE 1 — RESEARCH
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -1335,18 +1372,16 @@ def _regex_extract_domains(text: str) -> List[str]:
 async def research_node(state: AgentState) -> AgentState:
     keyword = state["keyword"]
     campaign_id = state.get("campaign_id", None)
-    logger.info(f"[Node 1] Researching keyword: {keyword} | campaign_id={campaign_id}")
+    search_queries = state.get("search_queries", [keyword])
+    logger.info(f"[Node 1] Researching using queries: {search_queries} | campaign_id={campaign_id}")
 
-    queries = [
-        keyword,
-        f"{keyword} official website",
-        f"{keyword} startup site:*.com OR site:*.io OR site:*.ai",
-        f"{keyword} company website",
-        f"{keyword} SaaS platform",
-        f"{keyword} companies list",
-        f"{keyword} top startups",
-        f"{keyword} providers directory",
-    ]
+    queries = []
+    for q in search_queries:
+        queries.extend([
+            q,
+            f"{q} official website",
+            f"{q} startup site:*.com OR site:*.io OR site:*.ai"
+        ])
     all_results = ""
     for q in queries:
         result = await _search_with_fallback(q, context=f"research/{keyword}")
@@ -2060,105 +2095,110 @@ async def scrape_node(state: AgentState) -> AgentState:
 
         await mark_crawling()
 
-        # Validate domain resolves before attempting to crawl
-        domain_resolves = await _domain_resolves(base_host)
-        if not domain_resolves:
-            logger.warning(
-                f"[Node 2A] {start_url}: DNS resolution failed — skipping domain"
-            )
-            host_failure_count = MAX_HOST_NETWORK_FAILURES
-        else:
-            # Homepage crawl only if domain resolves
-            homepage_result = await _crawl_with_sem(
-                crawler, start_url, 0, ds_id, comp_id, "GENERIC"
-            )
-            if isinstance(homepage_result, dict) and homepage_result.get("success"):
-                success_count += 1
-            elif isinstance(homepage_result, dict) and _is_network_failure(
-                homepage_result.get("failure_reason", "")
-            ):
-                # Homepage itself is unreachable — no point trying /contact, /team, etc.
-                # Immediately mark as max failures to skip all further crawling.
+        try:
+            # Validate domain resolves before attempting to crawl
+            domain_resolves = await _domain_resolves(base_host)
+            if not domain_resolves:
+                logger.warning(
+                    f"[Node 2A] {start_url}: DNS resolution failed — skipping domain"
+                )
                 host_failure_count = MAX_HOST_NETWORK_FAILURES
-                logger.info(
-                    f"[Node 2A] {start_url}: network failure on homepage (timeout/unreachable), "
-                    f"skipping all sub-URLs for this domain"
+            else:
+                # Homepage crawl only if domain resolves
+                homepage_result = await _crawl_with_sem(
+                    crawler, start_url, 0, ds_id, comp_id, "GENERIC"
                 )
+                if isinstance(homepage_result, dict) and homepage_result.get("success"):
+                    success_count += 1
+                elif isinstance(homepage_result, dict) and _is_network_failure(
+                    homepage_result.get("failure_reason", "")
+                ):
+                    # Homepage itself is unreachable — no point trying /contact, /team, etc.
+                    # Immediately mark as max failures to skip all further crawling.
+                    host_failure_count = MAX_HOST_NETWORK_FAILURES
+                    logger.info(
+                        f"[Node 2A] {start_url}: network failure on homepage (timeout/unreachable), "
+                        f"skipping all sub-URLs for this domain"
+                    )
 
-            # Only process queue if homepage result exists
-            if isinstance(homepage_result, dict):
-                for child_url, child_score in homepage_result.get("suburls", []):
-                    if (
-                        can_queue(child_url)
-                        and child_url not in visited
-                        and len(visited) < max_urls
-                    ):
-                        visited.add(child_url)
-                        queue.append((child_score, 1, child_url, "GENERIC"))
-
-        for score, seed_url in build_priority_seed_urls(
-            start_url, include_exploratory=bool(tgt.get("deep_scrape"))
-        ):
-            if (
-                can_queue(seed_url)
-                and seed_url not in visited
-                and len(visited) < max_urls
-            ):
-                visited.add(seed_url)
-                queue.append((score, 1, seed_url, "PRIORITY"))
-
-        while queue and len(visited) < max_urls:
-            if host_failure_count >= MAX_HOST_NETWORK_FAILURES:
-                logger.info(
-                    f"[Node 2A] {start_url}: stopping further crawl after repeated network failures"
-                )
-                break
-            queue.sort(key=lambda x: x[0], reverse=True)
-            batch, queue = queue[:10], queue[10:]
-            tasks = []
-            for score, depth, u, label in batch:
-                if not can_queue(u):
-                    continue
-                if len(visited) + len(tasks) >= max_urls:
-                    break
-                tasks.append(_crawl_with_sem(crawler, u, depth, ds_id, comp_id, label))
-
-            if not tasks:
-                break
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            for res in results:
-                if isinstance(res, dict):
-                    if res.get("success"):
-                        success_count += 1
-                    elif _is_network_failure(res.get("failure_reason", "")):
-                        host_failure_count += 1
-                        logger.info(
-                            f"[Node 2A] {start_url}: network failure for {res.get('host') or base_host}, "
-                            f"count={host_failure_count}"
-                        )
-                        if host_failure_count >= MAX_HOST_NETWORK_FAILURES:
-                            break
-                    for child_url, child_score in res.get("suburls", []):
+                # Only process queue if homepage result exists
+                if isinstance(homepage_result, dict):
+                    for child_url, child_score in homepage_result.get("suburls", []):
                         if (
                             can_queue(child_url)
                             and child_url not in visited
                             and len(visited) < max_urls
                         ):
                             visited.add(child_url)
-                            queue.append((child_score, depth + 1, child_url, "GENERIC"))
-            if host_failure_count >= MAX_HOST_NETWORK_FAILURES:
-                logger.info(
-                    f"[Node 2A] {start_url}: halting queue expansion after repeated network failures"
+                            queue.append((child_score, 1, child_url, "GENERIC"))
+
+            for score, seed_url in build_priority_seed_urls(
+                start_url, include_exploratory=bool(tgt.get("deep_scrape"))
+            ):
+                if (
+                    can_queue(seed_url)
+                    and seed_url not in visited
+                    and len(visited) < max_urls
+                ):
+                    visited.add(seed_url)
+                    queue.append((score, 1, seed_url, "PRIORITY"))
+
+            while queue and len(visited) < max_urls:
+                if host_failure_count >= MAX_HOST_NETWORK_FAILURES:
+                    logger.info(
+                        f"[Node 2A] {start_url}: stopping further crawl after repeated network failures"
+                    )
+                    break
+                queue.sort(key=lambda x: x[0], reverse=True)
+                batch, queue = queue[:10], queue[10:]
+                tasks = []
+                for score, depth, u, label in batch:
+                    if not can_queue(u):
+                        continue
+                    if len(visited) + len(tasks) >= max_urls:
+                        break
+                    tasks.append(_crawl_with_sem(crawler, u, depth, ds_id, comp_id, label))
+
+                if not tasks:
+                    break
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                for res in results:
+                    if isinstance(res, dict):
+                        if res.get("success"):
+                            success_count += 1
+                        elif _is_network_failure(res.get("failure_reason", "")):
+                            host_failure_count += 1
+                            logger.info(
+                                f"[Node 2A] {start_url}: network failure for {res.get('host') or base_host}, "
+                                f"count={host_failure_count}"
+                            )
+                            if host_failure_count >= MAX_HOST_NETWORK_FAILURES:
+                                break
+                        for child_url, child_score in res.get("suburls", []):
+                            if (
+                                can_queue(child_url)
+                                and child_url not in visited
+                                and len(visited) < max_urls
+                            ):
+                                visited.add(child_url)
+                                queue.append((child_score, depth + 1, child_url, "GENERIC"))
+                if host_failure_count >= MAX_HOST_NETWORK_FAILURES:
+                    logger.info(
+                        f"[Node 2A] {start_url}: halting queue expansion after repeated network failures"
+                    )
+                    break
+
+        except Exception as e:
+            logger.error(f"[Node 2A] {start_url}: unhandled exception in process_domain: {e}", exc_info=True)
+        finally:
+            @sync_to_async(thread_sensitive=False)
+            def finalize_company():
+                Company.objects.filter(id=comp_id).update(
+                    crawl_status="done" if success_count else "failed"
                 )
-                break
 
-        @sync_to_async(thread_sensitive=False)
-        def finalize_company():
-            Company.objects.filter(id=comp_id).update(
-                crawl_status="done" if success_count else "failed"
-            )
+            await finalize_company()
 
-        await finalize_company()
         return visited
 
     if not CRAWLER_AVAILABLE:
@@ -2242,6 +2282,8 @@ async def ai_gap_analysis_node(state: AgentState) -> AgentState:
                 rescored_data.get("services_needed_from_us")
             ) or page_signals.get("services_needed_from_us", [])
 
+            strategy_dict = state.get("strategy", {})
+            strategy_context_str = json.dumps(strategy_dict.get("service_understanding", {})) if strategy_dict else "AI automation services"
             prompt = AI_GAP_ANALYSIS_PROMPT.format(
                 company_name=c.company_name,
                 industry=rescored_data.get("industry") or c.industry or "Unknown",
@@ -2249,6 +2291,7 @@ async def ai_gap_analysis_node(state: AgentState) -> AgentState:
                 company_products=", ".join(products) or "Unknown",
                 current_ai_usage=", ".join(current_ai_usage) or "Unknown",
                 services_needed_from_us=", ".join(services_needed) or "Unknown",
+                strategy_context=strategy_context_str,
             )
             resp_content = call_llm(prompt, temperature=0.3)
             analysis_data = (
@@ -2344,6 +2387,7 @@ async def outreach_node(state: AgentState) -> AgentState:
                 Outreach.objects.create(
                     contact=c,
                     company=c.company,
+                    campaign_id=state.get("campaign_id"),
                     status="drafted",
                     email_subject=email_data.get("subject", "Connecting"),
                     email_body=email_data.get("body", ""),
@@ -2400,23 +2444,37 @@ async def send_to_companies_node(state: AgentState) -> AgentState:
 
             subject = f"AI Adoption Analysis for {company.company_name}"
 
-            body = f"""Hello Team,
+            body = f"""<div style="font-family: 'Inter', sans-serif; color: #1f2937; line-height: 1.6; max-width: 600px; border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden; background: #ffffff; margin: 0 auto;">
+  <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 30px; text-align: center;">
+    <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800;">AI Adoption Audit</h1>
+    <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 14px;">Prepared for {company.company_name}</p>
+  </div>
+  
+  <div style="padding: 30px;">
+    <p style="font-size: 16px; margin-bottom: 25px;">Hello Team,</p>
+    <p style="font-size: 15px; margin-bottom: 25px;">Our strategy team has analyzed <strong>{company.company_name}</strong>'s current operations and identified significant opportunities for AI-driven transformation.</p>
+    
+    <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #f1f5f9;">
+      <h3 style="margin-top: 0; color: #4f46e5; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">🔍 Identification of Gaps</h3>
+      <p style="font-size: 14px; color: #475569; margin: 10px 0 0 0;">{ai_gaps_summary}</p>
+    </div>
 
-We've analyzed {company.company_name} and identified key AI adoption opportunities.
+    <div style="background: #f0f9ff; border-radius: 12px; padding: 20px; margin-bottom: 25px; border: 1px solid #e0f2fe;">
+      <h3 style="margin-top: 0; color: #0369a1; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">💡 Strategic Recommendations</h3>
+      <p style="font-size: 14px; color: #0c4a6e; margin: 10px 0 0 0;">{ai_recommendations}</p>
+    </div>
 
-=== AI GAPS IDENTIFIED ===
+    <p style="font-size: 15px; margin-bottom: 30px;">We believe integrating these AI solutions will provide a measurable competitive advantage and operational scale.</p>
+    
+    <div style="text-align: center;">
+      <a href="#" style="background: #4f46e5; color: #ffffff; padding: 12px 25px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block;">Schedule Strategy Call</a>
+    </div>
+  </div>
 
-{ai_gaps_summary}
-
-=== OUR RECOMMENDATIONS ===
-
-{ai_recommendations}
-
-We believe these AI solutions could significantly improve your operational efficiency.
-
-Best regards,
-Sales Team
-"""
+  <div style="background: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+    <p style="font-size: 12px; color: #9ca3af; margin: 0;">Best regards,<br/><strong style="color: #4b5563;">Sales Strategy Team @ HabileLabs</strong></p>
+  </div>
+</div>"""
 
             # ✅ SAVE into Outreach (not send) as BULK
             obj, created_flag = Outreach.objects.get_or_create(
@@ -2439,8 +2497,7 @@ Sales Team
                 obj.campaign_id = state.get("campaign_id")
                 obj.save(update_fields=["email_subject", "email_body", "email_type", "campaign_id"])
 
-                if created_flag:
-                    created += 1
+                created += 1
 
         return created
 
@@ -2693,6 +2750,7 @@ def should_send_personalized_emails(state: AgentState) -> str:
 def build_pipeline():
     workflow = StateGraph(AgentState)
 
+    workflow.add_node("strategy_generation", strategy_generation_node)
     workflow.add_node("research", research_node)
     workflow.add_node("discover_buyer_contacts", discover_buyer_contacts_node)
     workflow.add_node("scrape", scrape_node)
@@ -2710,7 +2768,8 @@ def build_pipeline():
     workflow.add_node("send_personalized_email", send_personalized_email_node)
 
     # FLOW
-    workflow.add_edge(START, "research")
+    workflow.add_edge(START, "strategy_generation")
+    workflow.add_edge("strategy_generation", "research")
     workflow.add_edge("research", "discover_buyer_contacts")
     workflow.add_edge("discover_buyer_contacts", "scrape")
     workflow.add_edge("scrape", "hunter_enrich_contacts")

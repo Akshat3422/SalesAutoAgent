@@ -1,8 +1,10 @@
 import { useContacts } from '../hooks/useApi';
+import { useCampaignStore } from '../store/campaignStore';
 import { Users, Link2, Mail, ShieldCheck, ExternalLink } from 'lucide-react';
 
 export default function ContactsTab() {
-  const { data: contacts, isLoading } = useContacts();
+  const { activeCampaignId } = useCampaignStore();
+  const { data: contacts, isLoading } = useContacts(activeCampaignId || undefined);
 
   if (isLoading) {
     return (
