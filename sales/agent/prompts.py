@@ -2,11 +2,14 @@ EXTRACT_URLS_PROMPT = """You are a precise data extraction system.
 
 ## Task
 Extract valid company root domains from the search results below.
-The keyword describes a type of company we want to find and reach out to.
+The keyword/search query describes buyer-side companies that are likely to have operational pain points our AI and automation services can solve.
+Your job is to identify potential customers, not companies that provide AI services.
 
 ## What to INCLUDE
 * Official company / startup websites (any TLD: .com .io .ai .co .app .tech etc.)
-* Include companies that clearly match the keyword intent
+* Include operating businesses that clearly match the buyer pain, industry, workflow, or use case in the keyword/search query
+* Prefer companies with signs of manual, repetitive, document-heavy, sales-heavy, support-heavy, logistics-heavy, or operations-heavy work
+* Prefer companies where our services could improve speed, cost, accuracy, customer experience, lead conversion, internal productivity, or workflow scale
 
 ## What to EXCLUDE
 * Aggregator / directory / ranking sites:
@@ -16,6 +19,8 @@ The keyword describes a type of company we want to find and reach out to.
   Wikipedia, Reddit, Quora, Facebook, Twitter/X, Instagram, YouTube
 * News articles and blog posts
 * Generic search / info pages
+* AI service providers, AI agencies, AI consultants, chatbot vendors, automation agencies, software development agencies, and companies whose main business is selling the same services we offer
+* Competitors or vendor-side companies unless the query clearly asks for their customers
 
 ## Normalization
 * Strip subpages, query strings, fragments → root domain only
@@ -26,6 +31,8 @@ The keyword describes a type of company we want to find and reach out to.
 ## Additional quality checks
 * Keep only domains that are very likely to be operating companies, not media pages
 * Prefer domains where the snippet/title implies a product, service, platform, or business offering
+* Treat the search query as a demand signal. Select companies that likely need AI services, not companies that market AI services.
+* If a company appears to sell AI/automation/consulting as its core offering, exclude it.
 * If the same company appears multiple times, keep one canonical root domain
 
 ## Output — STRICT JSON ARRAY ONLY
@@ -47,9 +54,13 @@ Search Results:
 AI_SCORE_PROMPT = """You are a B2B AI sales researcher analysing startup websites for outbound sales.
 
 ## Task
-Evaluate this company on two dimensions:
+Evaluate this company as a potential buyer of our AI and automation services.
+Focus on demand-side fit: whether the company has operational workflows, manual processes, scale pressure, or customer-facing bottlenecks that our services can solve.
+
+Evaluate this company on three dimensions:
 1. How mature they already are in AI adoption
 2. How strong the fit is for our AI services
+3. How much evidence there is that they may need to buy or build automation
 
 Our services include:
 - AI agents and copilots
@@ -118,6 +129,8 @@ Server will apply: ai_score = (service_fit * 0.45) + (buying_intent * 0.35) + ((
 - If evidence is weak, LOWER the score (not higher!)
 - Mention concrete evidence in reasoning
 - If they look like a competitor (AI services, AI tools, AI consulting) → set service_fit_score to 5-15 max
+- Do not reward companies merely for mentioning AI. Reward companies for having buyer-side pain that AI can solve.
+- Strong prospects are companies that use people, forms, documents, support teams, sales teams, operations teams, or internal workflows at scale.
 - Medium confidence should be default, high only if strong evidence
 
 ## Output — STRICT JSON ONLY
@@ -146,6 +159,7 @@ EXTRACT_CONTACTS_PROMPT = """You are an information extraction engine that reads
 
 ## Task
 From the website content below, extract structured lead/contact information and identify their core services/products.
+Also identify buyer-side operational pain signals that suggest they may need AI, automation, data, cloud, software, or workflow improvement services.
 
 ## Fields to extract
 * company_name    — official company name (infer from brand/domain if not stated explicitly)
@@ -166,6 +180,8 @@ From the website content below, extract structured lead/contact information and 
 * If multiple emails are present, return the best outreach email
 * Keep services_offered concise and factual (max 2 sentences)
 * Lists should be short and concrete
+* Infer services_needed_from_us only from visible buyer-side signals such as manual workflows, document processing, customer support, sales operations, operational scale, reporting needs, integrations, or repetitive processes
+* If the company mainly sells AI/automation/software consulting, mark services_needed_from_us as null unless there is clear buyer-side need
 * If a value is not clearly present, return null
 
 ## Output — STRICT JSON ONLY
@@ -351,8 +367,16 @@ STRATEGY_GENERATION_PROMPT = """You are a B2B sales strategist and GTM consultan
 
 ## Task
 Based on the user's input, generate a comprehensive opportunity discovery strategy.
-Infer operational pain points and generate highly specific search queries to discover companies likely to need this service.
+The input may come from a campaign launch UI with a Campaign Name, Target Keyword, and optional Description.
+Treat the user's input as the service we want to sell, not as the type of company we want to find.
+Infer the buyer-side operational pain points this service solves and generate highly specific search queries to discover companies likely to need this service.
 DO NOT generate generic keyword searches. Think operationally.
+DO NOT search for companies that provide the same AI/service. Search for companies that have the workflows, pain, scale, or inefficiencies that would make them buyers.
+
+If the Target Keyword mixes an industry/location with our service, separate them:
+- "edtech AI services India" means find EdTech companies in India that may need AI services.
+- "real estate automation UAE" means find real estate companies in UAE with workflows suitable for automation.
+- "healthcare chatbot services US" means find healthcare companies in the US with support, scheduling, intake, or patient communication needs.
 
 ## Output — STRICT JSON ONLY
 {{
@@ -366,9 +390,21 @@ DO NOT generate generic keyword searches. Think operationally.
 }}
 
 ## Rules for Search Queries
-- Generate EXACTLY 5 high-quality, operational search queries.
-- Good example: "insurance claims processing companies"
-- Bad example: "AI automation customers"
+- Generate EXACTLY 5 high-quality, operational search queries that target potential buyers.
+- Queries should be industry/use-case/workflow oriented, not vendor oriented.
+- Prefer phrases that reveal companies with repetitive work, customer operations, lead handling, document-heavy processes, logistics, compliance, reporting, scheduling, onboarding, claims, support, or internal knowledge needs.
+- Good examples:
+  - "insurance claims processing companies"
+  - "logistics dispatch management companies"
+  - "real estate lead management companies"
+  - "healthcare appointment scheduling companies"
+  - "B2B customer support outsourcing companies"
+- Bad examples:
+  - "AI automation companies"
+  - "AI chatbot providers"
+  - "AI consulting firms"
+  - "companies providing workflow automation"
+  - "AI automation customers"
 
 ## Input
 User Query: {user_query}

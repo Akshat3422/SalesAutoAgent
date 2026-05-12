@@ -6,13 +6,17 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('outreach', '0004_add_campaign_fk'),
+        ("outreach", "0004_add_campaign_fk"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='outreach',
-            name='email_type',
-            field=models.CharField(choices=[('personalized', 'Personalized'), ('bulk', 'Bulk')], default='personalized', max_length=20),
+            model_name="outreach",
+            name="email_type",
+            field=models.CharField(
+                choices=[("personalized", "Personalized"), ("bulk", "Bulk")],
+                default="personalized",
+                max_length=20,
+            ),
         ),
     ]

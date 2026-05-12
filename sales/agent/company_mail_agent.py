@@ -24,9 +24,7 @@ def _combine_company_drafts(
             f"Body:\n{outreach.final_body or ''}"
         )
 
-    formatted_drafts = "\n\n".join(
-        [f"Draft {i+1}:\n{d}" for i, d in enumerate(drafts)]
-    )
+    formatted_drafts = "\n\n".join([f"Draft {i+1}:\n{d}" for i, d in enumerate(drafts)])
 
     prompt = COMBINE_COMPANY_OUTREACH_PROMPT.format(
         company_name=company.company_name,

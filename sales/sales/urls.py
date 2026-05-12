@@ -11,6 +11,7 @@ from sales.DataChunk.views import DataChunkProcessViewSet
 from sales.campaigns.views import CampaignViewSet
 from sales.sales.auth_views import login_view, logout_view, user_view
 
+
 # Root health check
 def health_check(request):
     return JsonResponse({"status": "ok", "message": "SalesAuto API is running"})
