@@ -27,6 +27,7 @@ class CampaignViewSet(viewsets.ModelViewSet):
 
         # Contact stats (through companies)
         from sales.contacts.models import Contact
+
         company_ids = list(companies_qs.values_list("id", flat=True))
         total_contacts = Contact.objects.filter(company_id__in=company_ids).count()
 
@@ -37,15 +38,17 @@ class CampaignViewSet(viewsets.ModelViewSet):
         sent = outreach_qs.filter(status="sent").count()
         replies = outreach_qs.filter(replied=True).count()
 
-        return Response({
-            "campaign_id": campaign.id,
-            "campaign_name": campaign.name,
-            "total_companies": total_companies,
-            "crawled_companies": crawled_companies,
-            "failed_companies": failed_companies,
-            "total_contacts": total_contacts,
-            "emails_drafted": drafted,
-            "emails_approved": approved,
-            "emails_sent": sent,
-            "replies": replies,
-        })
+        return Response(
+            {
+                "campaign_id": campaign.id,
+                "campaign_name": campaign.name,
+                "total_companies": total_companies,
+                "crawled_companies": crawled_companies,
+                "failed_companies": failed_companies,
+                "total_contacts": total_contacts,
+                "emails_drafted": drafted,
+                "emails_approved": approved,
+                "emails_sent": sent,
+                "replies": replies,
+            }
+        )

@@ -50,10 +50,14 @@ def agent_trigger_view(request):
             data = json.loads(request.body)
             keyword = data.get("keyword", "EdTech India AI")
             campaign_name = data.get("campaign_name", None)
+            campaign_description = data.get("description") or data.get(
+                "campaign_description"
+            )
             campaign_id = data.get("campaign_id", None)
         except Exception:
             keyword = "EdTech India AI"
             campaign_name = None
+            campaign_description = None
             campaign_id = None
 
         # Resolve campaign: use existing or create new
@@ -65,17 +69,27 @@ def agent_trigger_view(request):
                 campaign = None
 
         if campaign is None and campaign_name:
-            campaign, _ = Campaign.objects.get_or_create(
+            campaign, created = Campaign.objects.get_or_create(
                 name=campaign_name,
                 is_deleted=False,
                 defaults={
-                    "description": f"Auto-created for keyword: {keyword}",
+                    "description": campaign_description
+                    or f"Auto-created for keyword: {keyword}",
                     "is_active": True,
                 },
             )
+            if not created and campaign_description:
+                campaign.description = campaign_description
+                campaign.save(update_fields=["description", "updated_at"])
+        elif campaign and campaign_description:
+            campaign.description = campaign_description
+            campaign.save(update_fields=["description", "updated_at"])
 
         resolved_campaign_id = campaign.id if campaign else None
         resolved_campaign_name = campaign.name if campaign else None
+        resolved_campaign_description = (
+            campaign.description if campaign else campaign_description
+        )
 
         _PIPELINE_STATUS["is_running"] = True
         _PIPELINE_STATUS["current_keyword"] = keyword
@@ -85,7 +99,7 @@ def agent_trigger_view(request):
         _PIPELINE_STATUS["finished_at"] = None
         _PIPELINE_STATUS["last_error"] = None
 
-        def run_pipeline_background(kw, cid):
+        def run_pipeline_background(kw, cid, desc):
             from django.db import connections
 
             connections.close_all()
@@ -94,7 +108,9 @@ def agent_trigger_view(request):
             try:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                loop.run_until_complete(execute_pipeline(kw, campaign_id=cid))
+                loop.run_until_complete(
+                    execute_pipeline(kw, campaign_id=cid, campaign_description=desc)
+                )
             except Exception as exc:
                 _PIPELINE_STATUS["last_error"] = str(exc)
             finally:
@@ -104,9 +120,12 @@ def agent_trigger_view(request):
                         from sales.companies.models import Company
                         from sales.contacts.models import Contact
                         from sales.outreach.models import Outreach as OutreachModel
+
                         cpn = Campaign.objects.get(id=cid)
                         company_ids = list(
-                            Company.objects.filter(campaign_id=cid).values_list("id", flat=True)
+                            Company.objects.filter(campaign_id=cid).values_list(
+                                "id", flat=True
+                            )
                         )
                         cpn.total_companies_found = len(company_ids)
                         cpn.total_companies = len(company_ids)
@@ -117,14 +136,16 @@ def agent_trigger_view(request):
                             company_id__in=company_ids, status="sent"
                         ).count()
                         cpn.is_active = False
-                        cpn.save(update_fields=[
-                            "total_companies_found",
-                            "total_companies",
-                            "email_extracted",
-                            "total_email_send",
-                            "is_active",
-                            "updated_at",
-                        ])
+                        cpn.save(
+                            update_fields=[
+                                "total_companies_found",
+                                "total_companies",
+                                "email_extracted",
+                                "total_email_send",
+                                "is_active",
+                                "updated_at",
+                            ]
+                        )
                     except Exception:
                         pass
 
@@ -142,7 +163,7 @@ def agent_trigger_view(request):
 
         thread = threading.Thread(
             target=run_pipeline_background,
-            args=(keyword, resolved_campaign_id),
+            args=(keyword, resolved_campaign_id, resolved_campaign_description),
             daemon=True,
         )
         thread.start()
@@ -178,12 +199,12 @@ def approval_queue_view(request):
     """
     if request.method == "GET":
         campaign_id = request.GET.get("campaign_id")
-        drafts = Outreach.objects.filter(status="drafted", email_type="personalized").select_related(
-            "contact", "company"
-        )
+        drafts = Outreach.objects.filter(
+            status="drafted", email_type="personalized"
+        ).select_related("contact", "company")
         if campaign_id:
             drafts = drafts.filter(campaign_id=campaign_id)
-            
+
         data = []
         for d in drafts:
             data.append(
@@ -212,12 +233,12 @@ def bulk_queue_view(request):
     """
     if request.method == "GET":
         campaign_id = request.GET.get("campaign_id")
-        qs = Outreach.objects.filter(status="drafted", email_type="bulk").select_related(
-            "contact", "company"
-        )
+        qs = Outreach.objects.filter(
+            status="drafted", email_type="bulk"
+        ).select_related("contact", "company")
         if campaign_id:
             qs = qs.filter(campaign_id=campaign_id)
-            
+
         data = []
         for d in qs:
             data.append(
@@ -254,7 +275,7 @@ def grouped_company_outreach_view(request):
     qs = Outreach.objects.filter(status="approved").select_related("company", "contact")
     if campaign_id:
         qs = qs.filter(campaign_id=campaign_id)
-        
+
     approved_rows = list(qs.order_by("company_id", "created_at"))
     grouped = defaultdict(list)
     for outreach in approved_rows:
@@ -340,10 +361,11 @@ def approve_outreach_view(request, outreach_id):
         def send_email_async():
             try:
                 from sales.agent.email_sender import TEST_MODE, TEST_EMAIL
+
                 to_email = TEST_EMAIL if TEST_MODE else outreach.contact.contact_email
                 if TEST_MODE:
                     print(f"[TEST MODE] Redirecting email to {TEST_EMAIL}")
-                    
+
                 email_service_url = "http://localhost:8001"
                 response = requests.post(
                     f"{email_service_url}/api/send-email",
@@ -501,7 +523,9 @@ def bulk_approve_company_view(request, company_id):
     """
     Deprecated. Use send_bulk_outreach_view instead.
     """
-    return JsonResponse({"error": "Deprecated. Use /api/agent/send-bulk/ instead."}, status=410)
+    return JsonResponse(
+        {"error": "Deprecated. Use /api/agent/send-bulk/ instead."}, status=410
+    )
 
 
 @csrf_exempt
@@ -547,10 +571,11 @@ def send_bulk_outreach_view(request):
         for outreach in drafted_emails:
             try:
                 from sales.agent.email_sender import TEST_MODE, TEST_EMAIL
+
                 to_email = TEST_EMAIL if TEST_MODE else outreach.contact.contact_email
                 if TEST_MODE:
                     print(f"[TEST MODE] Redirecting email to {TEST_EMAIL}")
-                    
+
                 response = requests.post(
                     f"{email_service_url}/api/send-email",
                     json={
@@ -568,7 +593,7 @@ def send_bulk_outreach_view(request):
                     outreach.sent_at = timezone.now()
                     outreach.save(update_fields=["status", "sent_at", "updated_at"])
                     sent += 1
-                    
+
                     # Update Campaign stats if available
                     campaign = outreach.company.campaign
                     if campaign:

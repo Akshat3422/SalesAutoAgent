@@ -1248,6 +1248,7 @@ def _collect_page_signals(chunks: List[DataChunkProcess]) -> Dict[str, List[str]
 class AgentState(TypedDict, total=False):
     keyword: str
     user_query: str  # For strategy generation
+    campaign_description: Optional[str]
     strategy: Dict[str, Any]
     search_queries: List[str]
     target_domains: List[Dict[str, Any]]
@@ -1335,10 +1336,78 @@ def _regex_extract_domains(text: str) -> List[str]:
 # NODE 0 — STRATEGY GENERATION
 # ──────────────────────────────────────────────────────────────────────────────
 
+
+def _build_campaign_strategy_query(state: AgentState) -> str:
+    keyword = (state.get("keyword") or "").strip()
+    description = (state.get("campaign_description") or "").strip()
+
+    parts = [
+        "UI campaign input:",
+        f"Target keyword: {keyword}",
+    ]
+    if description:
+        parts.append(f"Campaign description/goals: {description}")
+
+    parts.extend(
+        [
+            "",
+            "Interpret the target keyword as the market, industry, geography, or buyer segment to research.",
+            "If the keyword contains phrases like AI services, automation, chatbot, or software development, treat those as services we sell, not as vendors to find.",
+            "Find companies that likely need these services, not companies that provide these services.",
+        ]
+    )
+    return "\n".join(parts)
+
+
+def _buyer_search_seed(keyword: str) -> str:
+    seed = (keyword or "").strip()
+    replacements = [
+        r"\bai\s+services?\b",
+        r"\bartificial\s+intelligence\s+services?\b",
+        r"\bautomation\s+services?\b",
+        r"\bchatbot\s+services?\b",
+        r"\bsoftware\s+development\s+services?\b",
+        r"\bconsulting\s+services?\b",
+    ]
+    for pattern in replacements:
+        seed = re.sub(pattern, "companies", seed, flags=re.IGNORECASE)
+    seed = re.sub(
+        r"\bproviders?\b|\bvendors?\b|\bagencies\b|\bconsultants?\b",
+        "companies",
+        seed,
+        flags=re.IGNORECASE,
+    )
+    seed = re.sub(r"\s+", " ", seed).strip()
+    return seed or keyword
+
+
+def _fallback_buyer_queries(keyword: str, description: Optional[str] = None) -> List[str]:
+    seed = _buyer_search_seed(keyword)
+    queries = [
+        seed,
+        f"{seed} companies",
+        f"{seed} startups",
+        f"{seed} businesses with customer support operations",
+        f"{seed} companies with sales operations",
+    ]
+    if description:
+        queries.append(f"{seed} {description[:80]}")
+
+    seen: set = set()
+    out: List[str] = []
+    for query in queries:
+        normalized = query.strip()
+        key = normalized.lower()
+        if normalized and key not in seen:
+            seen.add(key)
+            out.append(normalized)
+    return out[:5]
+
+
 async def strategy_generation_node(state: AgentState) -> AgentState:
-    user_query = state.get("user_query") or state.get("keyword")
+    user_query = state.get("user_query") or _build_campaign_strategy_query(state)
     logger.info(f"[Node 0] Generating strategy for query: {user_query}")
-    
+
     if not user_query:
         state["strategy"] = {}
         state["search_queries"] = [state.get("keyword", "")]
@@ -1347,19 +1416,23 @@ async def strategy_generation_node(state: AgentState) -> AgentState:
     prompt = STRATEGY_GENERATION_PROMPT.format(user_query=user_query)
     raw_response = await sync_to_async(call_llm)(prompt, temperature=0.3)
     parsed = safe_parse_llm_json(raw_response, context="strategy_generation")
-    
+
     if parsed and isinstance(parsed, dict):
         state["strategy"] = parsed
         queries = parsed.get("search_intelligence", {}).get("search_queries", [])
         if queries:
-            state["search_queries"] = queries[:3] # Limit to top 3 for batching
+            state["search_queries"] = queries[:3]  # Limit to top 3 for batching
             # Override keyword with the first query just in case legacy nodes need it
-            state["keyword"] = queries[0] 
+            state["keyword"] = queries[0]
         else:
-            state["search_queries"] = [user_query]
+            state["search_queries"] = _fallback_buyer_queries(
+                state.get("keyword", ""), state.get("campaign_description")
+            )
     else:
         state["strategy"] = {}
-        state["search_queries"] = [user_query]
+        state["search_queries"] = _fallback_buyer_queries(
+            state.get("keyword", ""), state.get("campaign_description")
+        )
 
     return state
 
@@ -1372,16 +1445,22 @@ async def strategy_generation_node(state: AgentState) -> AgentState:
 async def research_node(state: AgentState) -> AgentState:
     keyword = state["keyword"]
     campaign_id = state.get("campaign_id", None)
-    search_queries = state.get("search_queries", [keyword])
-    logger.info(f"[Node 1] Researching using queries: {search_queries} | campaign_id={campaign_id}")
+    search_queries = state.get("search_queries") or _fallback_buyer_queries(
+        keyword, state.get("campaign_description")
+    )
+    logger.info(
+        f"[Node 1] Researching using queries: {search_queries} | campaign_id={campaign_id}"
+    )
 
     queries = []
     for q in search_queries:
-        queries.extend([
-            q,
-            f"{q} official website",
-            f"{q} startup site:*.com OR site:*.io OR site:*.ai"
-        ])
+        queries.extend(
+            [
+                q,
+                f"{q} companies official website",
+                f"{q} startups official website",
+            ]
+        )
     all_results = ""
     for q in queries:
         result = await _search_with_fallback(q, context=f"research/{keyword}")
@@ -2157,7 +2236,9 @@ async def scrape_node(state: AgentState) -> AgentState:
                         continue
                     if len(visited) + len(tasks) >= max_urls:
                         break
-                    tasks.append(_crawl_with_sem(crawler, u, depth, ds_id, comp_id, label))
+                    tasks.append(
+                        _crawl_with_sem(crawler, u, depth, ds_id, comp_id, label)
+                    )
 
                 if not tasks:
                     break
@@ -2181,7 +2262,9 @@ async def scrape_node(state: AgentState) -> AgentState:
                                 and len(visited) < max_urls
                             ):
                                 visited.add(child_url)
-                                queue.append((child_score, depth + 1, child_url, "GENERIC"))
+                                queue.append(
+                                    (child_score, depth + 1, child_url, "GENERIC")
+                                )
                 if host_failure_count >= MAX_HOST_NETWORK_FAILURES:
                     logger.info(
                         f"[Node 2A] {start_url}: halting queue expansion after repeated network failures"
@@ -2189,8 +2272,12 @@ async def scrape_node(state: AgentState) -> AgentState:
                     break
 
         except Exception as e:
-            logger.error(f"[Node 2A] {start_url}: unhandled exception in process_domain: {e}", exc_info=True)
+            logger.error(
+                f"[Node 2A] {start_url}: unhandled exception in process_domain: {e}",
+                exc_info=True,
+            )
         finally:
+
             @sync_to_async(thread_sensitive=False)
             def finalize_company():
                 Company.objects.filter(id=comp_id).update(
@@ -2283,7 +2370,11 @@ async def ai_gap_analysis_node(state: AgentState) -> AgentState:
             ) or page_signals.get("services_needed_from_us", [])
 
             strategy_dict = state.get("strategy", {})
-            strategy_context_str = json.dumps(strategy_dict.get("service_understanding", {})) if strategy_dict else "AI automation services"
+            strategy_context_str = (
+                json.dumps(strategy_dict.get("service_understanding", {}))
+                if strategy_dict
+                else "AI automation services"
+            )
             prompt = AI_GAP_ANALYSIS_PROMPT.format(
                 company_name=c.company_name,
                 industry=rescored_data.get("industry") or c.industry or "Unknown",
@@ -2485,7 +2576,7 @@ async def send_to_companies_node(state: AgentState) -> AgentState:
                     "email_body": body,
                     "status": "drafted",
                     "email_type": "bulk",
-                    "campaign_id": state.get("campaign_id")
+                    "campaign_id": state.get("campaign_id"),
                 },
             )
 
@@ -2495,7 +2586,14 @@ async def send_to_companies_node(state: AgentState) -> AgentState:
                 obj.email_body = body
                 obj.email_type = "bulk"
                 obj.campaign_id = state.get("campaign_id")
-                obj.save(update_fields=["email_subject", "email_body", "email_type", "campaign_id"])
+                obj.save(
+                    update_fields=[
+                        "email_subject",
+                        "email_body",
+                        "email_type",
+                        "campaign_id",
+                    ]
+                )
 
                 created += 1
 
@@ -2784,15 +2882,32 @@ def build_pipeline():
     return workflow.compile()
 
 
-async def execute_pipeline(keyword: str, campaign_id: Optional[int] = None):
+async def execute_pipeline(
+    keyword: str,
+    campaign_id: Optional[int] = None,
+    campaign_description: Optional[str] = None,
+):
     import django
 
     if not django.apps.apps.ready:
         django.setup()
 
+    if campaign_id and not campaign_description:
+
+        @sync_to_async(thread_sensitive=False)
+        def get_campaign_description() -> Optional[str]:
+            try:
+                campaign = Campaign.objects.get(id=campaign_id, is_deleted=False)
+                return campaign.description
+            except Campaign.DoesNotExist:
+                return None
+
+        campaign_description = await get_campaign_description()
+
     app = build_pipeline()
     initial_state: AgentState = {
         "keyword": keyword,
+        "campaign_description": campaign_description,
         "target_domains": [],
         "scraped_urls": [],
         "emails": [],
@@ -2804,7 +2919,9 @@ async def execute_pipeline(keyword: str, campaign_id: Optional[int] = None):
     }
 
     logger.info("====================================")
-    logger.info(f"STARTING PIPELINE for keyword: {keyword} | campaign_id={campaign_id}")
+    logger.info(
+        f"STARTING PIPELINE for keyword: {keyword} | campaign_id={campaign_id}"
+    )
 
     try:
         async for output in app.astream(initial_state):

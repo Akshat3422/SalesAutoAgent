@@ -55,7 +55,6 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "corsheaders",
-    
     # Local apps
     "sales.companies",
     "sales.contacts",

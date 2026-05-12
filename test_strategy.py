@@ -10,13 +10,14 @@ django.setup()
 
 from sales.agent.graph import build_pipeline, AgentState
 
+
 async def test_strategy():
     keyword_query = "AI voice agents for healthcare customer support"
     print(f"Testing with query: {keyword_query}")
-    
+
     app = build_pipeline()
     initial_state: AgentState = {
-        "keyword": keyword_query, # We pass it as keyword which will be used as user_query
+        "keyword": keyword_query,  # We pass it as keyword which will be used as user_query
         "user_query": keyword_query,
         "target_domains": [],
         "scraped_urls": [],
@@ -41,10 +42,11 @@ async def test_strategy():
                 for q in state.get("search_queries", []):
                     print(f"- {q}")
                 print("----------------------------------\n")
-                break # Stop after strategy generation to save time/API calls
-                
+                break  # Stop after strategy generation to save time/API calls
+
     except Exception as e:
         print(f"Test failed: {e}")
+
 
 if __name__ == "__main__":
     asyncio.run(test_strategy())
